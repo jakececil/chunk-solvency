@@ -1,57 +1,65 @@
-# CHUNK // SOLVENCY v0.3
+# CHUNK // SOLVENCY — v0.4
 
-A local-first financial terrain board. There is no account, server, bank link, analytics, or database. The app code can be hosted on GitHub Pages, but the actual board state is stored locally in each browser/device.
+A local-first visual financial board. This build is the **continuous-body / mobile repair** pass.
 
-## What changed in v0.3
+## What changed in v0.4
 
-- **No input zoom ambush:** the app now uses a locked mobile viewport, 16px form inputs, no autofocus on dialogs, and gesture-zoom suppression. Opening an editor should no longer fling iPhone Safari into a close-up of a text field.
-- **The Continuous Body:** a literal, untruncated flow map showing every amount as major tiles divided into four quarter-cells. At the default scale, one major tile is $100 and one visible quarter-cell is $25. The dollar readout remains exact; the visual body rounds only to the nearest $25 quarter-cell, so $66 becomes three visible quarter-cells instead of pretending to be a whole $100 chunk.
-- **Square week calendar:** the Time Corridor is a complete seven-column calendar grid. It shows the whole horizon at once rather than requiring horizontal ribbon scrolling.
-- **Tap-to-tune territories:** tap hard assets, pipeline, true cash, buffer, or investments to open a direct territory tuner. Type an exact amount or drag left/right in $25 quarter steps. This is a board-level total control; individual named entries remain editable below.
-- **Correct territory behavior:** tapping an asset territory opens that territory’s tuner, not an accidental “new money object” form.
-- **Debt cards are dossiers:** debt mass is fully represented in the Continuous Body. The cards remain compact summaries instead of lying with truncated chunk squares.
+- **Continuous body is genuinely gapless.** Every visible little square is one quarter-cell. The board renders all visible quarter-cells for every positive segment in a single uninterrupted chain—assets, cash layers, obligations, debt minimums, and full dragon mass. A $9,200 balance at a $100 major-tile scale renders all 368 $25 cells.
+- **No mobile floating-label void field.** Segment names now live in a compact clickable map above the body; the body itself is only contiguous matter.
+- **Mobile layout rebuilt.** The full body uses 16 columns on normal phones, 14 on narrow phones, and 32 on wide desktops. It has no horizontal ribbon or hidden overflow requirement.
+- **Quarter logic retained.** A $100 major tile is four $25 cells by default. Exact dollar values remain visible even when a number has to round to the nearest visible $25 cell.
+- **Universal direct tuner.** Tap any continuous-body color, territory card, obligation, debt button, or life track to open the same compact adjustment sheet. It supports exact typing, ± quarter-cell buttons, and a horizontal finger-drag dial.
+- **One-tap commit path.** The compact tuner uses a standard button event, not a native dialog/form submission. `APPLY TO BOARD` is fixed in the same window and should not require a first “recognition” tap.
+- **No global touchend prevention.** v0.3’s aggressive double-tap guard was removed because it could plausibly contribute to ghost / two-tap behavior. The viewport remains locked and inputs stay 16px to prevent iPhone text-field zoom.
+- **Every calendar square is active.** The rolling seven-across time corridor begins at today and has no blank leading cells. Tap any day to set a non-binding earning goal, add a pipeline landing, or add an obligation due that day.
+- **Calendar connections are automatic.** A pipeline item with an expected landing date, a one-off obligation due date, a monthly obligation, and a debt minimum all appear on their matching time-corridor days.
+- **Local state persists and v0.3 state migrates.** The app reads `chunk-solvency-v3` / v0.2 / v0.1 browser state once if the new v0.4 state has not been created yet.
 
-## First run
+## Privacy
 
-1. Unzip the package.
-2. Open the `chunk-solvency-v0.3` folder in VS Code.
-3. Open `index.html` in a browser, or use Live Server.
-4. The initial figures are **demo terrain**. Use **START CLEAN** when you want to enter real numbers.
+The working financial board is saved only inside the browser on that particular device. GitHub Pages hosts the code, not your numbers.
 
-## Updating your existing GitHub repo from v0.2
+- Desktop and iPhone state are intentionally separate.
+- Use **EXPORT** to create a private JSON backup.
+- Use **IMPORT** to transfer a backup to another device.
+- Never upload an exported backup JSON file into the GitHub repo.
 
-Do this in the local cloned repository folder you created last time. Do **not** delete the `.git` folder.
+## Updating the existing repository
 
-1. Unzip this v0.3 package somewhere separate.
-2. Open two File Explorer windows:
-   - the unzipped `chunk-solvency-v0.3` folder;
-   - your local cloned `chunk-solvency` repository folder.
-3. Copy the **contents inside** `chunk-solvency-v0.3` into the existing local `chunk-solvency` repository folder.
+1. Unzip `chunk-solvency-v0.4.zip`.
+2. Open your local cloned `chunk-solvency` repo folder in File Explorer.
+3. Copy the **contents inside** `chunk-solvency-v0.4` into that repo folder.
 4. When Windows asks, choose **Replace the files in the destination**.
-5. In VS Code, open the local `chunk-solvency` repository folder.
-6. Open Source Control (`Ctrl + Shift + G`), stage all changes, commit with:
+5. Do not delete the hidden `.git` folder in the repo.
+6. In VS Code Source Control, stage all changes, commit, and push.
 
-   ```text
-   Rebuild flow body and quarter-cell controls in v0.3
-   ```
+Suggested commit message:
 
-7. Push / Sync Changes.
+```text
+Install gapless continuous body and day planner v0.4
+```
 
-Your existing locally saved v0.2 board should migrate automatically when v0.3 opens on the same browser + site URL. Still, export a backup before doing heavy edits.
+The repository root should directly contain:
 
-## GitHub Pages + iPhone
+```text
+index.html
+styles.css
+app.js
+manifest.json
+sw.js
+icons/
+README.md
+.nojekyll
+.gitignore
+```
 
-Keep GitHub Pages pointed at the `main` branch and `/(root)` source. After pushing, wait briefly for Pages to rebuild.
+## GitHub Pages / phone refresh note
 
-Because this is a Progressive Web App, an older Home Screen install can show cached v0.2 files for a little while. If the new build does not appear:
+Because this is a PWA, Safari can hang on to an old cached app shell for a moment after you push.
 
-1. Open the GitHub Pages URL directly in Safari.
-2. Close and reopen Safari, then revisit the URL.
-3. If needed, remove the old Home Screen icon and add the site again: **Share → Add to Home Screen → Open as Web App → Add**.
+1. Push v0.4.
+2. Open the GitHub Pages URL in Safari rather than from the old Home Screen icon.
+3. Reload it once.
+4. If the old build persists, delete the prior Home Screen icon and add the page again through Safari’s **Share → Add to Home Screen**.
 
-## State + backups
-
-- **Automatic save:** all edits are saved in local browser storage.
-- **Different device = different state:** desktop and iPhone do not share their saved board automatically.
-- **Move a board:** use **EXPORT** on one device and **IMPORT** on the other.
-- **Do not commit exports:** exported JSON files contain your actual financial information. Keep them outside the public repository.
+The app’s service worker cache name is now `chunk-solvency-v0-4`, so a fresh deploy should replace prior cached assets automatically.
