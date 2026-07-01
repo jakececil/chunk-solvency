@@ -1,28 +1,29 @@
 /*
-  CHUNK // SOLVENCY
-  Local-first state, no accounts, no tracking, no dependencies.
+  CHUNK // SOLVENCY v0.2
+  A static, local-first financial terrain board.
+  No backend. No tracking. No accounts. No dependencies.
 */
 
-const STORAGE_KEY = 'chunk-solvency-v1';
-const VERSION = 1;
+const STORAGE_KEY = 'chunk-solvency-v2';
+const LEGACY_STORAGE_KEY = 'chunk-solvency-v1';
+const VERSION = 2;
 
 const ASSET_TYPES = {
-  hardAsset: { label: 'Hard asset', short: 'Hard assets', color: '#9d8cff', description: 'Sellable only if you choose to turn a possession into cash.' },
-  pipeline: { label: 'Pipeline', short: 'Pipeline', color: '#73c4ff', description: 'Expected money that has not landed yet.' },
-  cash: { label: 'Immediate cash', short: 'True cash', color: '#66e0cf', description: 'Checking, physical cash, or money usable today.' },
-  buffer: { label: 'Protected buffer', short: 'Buffer', color: '#8bb5ff', description: 'Deliberately separated savings, held out of active flow.' },
-  investment: { label: 'Investment', short: 'Investment', color: '#b78cff', description: 'Optional to sell; may crystallize a loss or reduce future upside.' }
+  hardAsset: { label: 'Hard asset', title: 'Hard assets', description: 'Sellable possessions. This layer is intentionally treated as least-liquid.' },
+  pipeline: { label: 'Pipeline', title: 'Pipeline', description: 'Expected income that has not arrived yet.' },
+  cash: { label: 'True cash', title: 'True cash', description: 'Money accessible right now.' },
+  buffer: { label: 'Protected buffer', title: 'Buffer', description: 'Savings deliberately separated from active flow.' },
+  investment: { label: 'Investment', title: 'Investments', description: 'Capital that can be sold, possibly at a cost.' }
 };
 
 const EXPENSE_TYPES = {
-  essential: { label: 'Essential', color: '#ffb66f' },
-  flexible: { label: 'Flexible / variable', color: '#ffd47f' },
-  oneoff: { label: 'One-off', color: '#ff9c8c' }
+  essential: { label: 'Fixed / essential' },
+  flexible: { label: 'Variable / flexible' },
+  oneoff: { label: 'One-off' }
 };
 
 let state = loadState();
 let editing = null;
-
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
@@ -30,182 +31,125 @@ function todayAtNoon() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
 }
-
-function addDays(date, days) {
-  const out = new Date(date);
-  out.setDate(out.getDate() + days);
-  return out;
-}
-
+function addDays(date, days) { const result = new Date(date); result.setDate(result.getDate() + days); return result; }
+function daysBetween(a, b) { return Math.round((b - a) / 86400000); }
+function daysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
 function toInputDate(date) {
   const d = typeof date === 'string' ? new Date(`${date}T12:00:00`) : date;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-
 function parseInputDate(value) {
-  if (!value) return null;
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, month - 1, day, 12, 0, 0, 0);
 }
-
-function dateLabel(date) {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
-}
-
-function fullDateLabel(date) {
-  return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(date);
-}
-
+function dateLabel(date) { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date); }
+function weekDay(date) { return new Intl.DateTimeFormat('en-US', { weekday: 'narrow' }).format(date); }
 function money(value, decimals = 0) {
   const safe = Number.isFinite(Number(value)) ? Number(value) : 0;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  }).format(safe);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(safe);
 }
-
 function compactMoney(value) {
-  const abs = Math.abs(Number(value) || 0);
-  if (abs >= 1000) return `$${(Number(value) / 1000).toFixed(abs >= 10000 ? 0 : 1)}k`;
-  return money(value);
+  const n = Number(value) || 0;
+  const abs = Math.abs(n);
+  if (abs >= 1000) return `$${(n / 1000).toFixed(abs >= 10000 ? 0 : 1)}k`;
+  return money(n);
 }
+function uid(prefix) { return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`; }
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+function escapeHTML(value) { return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char])); }
+function escapeAttr(value) { return escapeHTML(value).replace(/`/g, '&#96;'); }
 
-function uid(prefix) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function clamp(value, low, high) {
-  return Math.max(low, Math.min(high, value));
-}
-
-function daysInMonth(year, month) {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function seededDemo() {
+function seedDemo() {
   const now = todayAtNoon();
-  const upcomingRent = addDays(now, 9);
   return {
     version: VERSION,
     isDemo: true,
-    settings: { taskPayout: 66, chunkSize: 100, forecastDays: 60 },
+    settings: { taskPayout: 66, chunkSize: 100, forecastDays: 28 },
     assets: [
-      { id: uid('asset'), name: 'Immediate cash', type: 'cash', amount: 420, expectedDate: '', confidence: 100, notes: 'Demo only' },
-      { id: uid('asset'), name: 'Protected buffer', type: 'buffer', amount: 250, expectedDate: '', confidence: 100, notes: 'Demo only' },
-      { id: uid('asset'), name: 'Likely task payout', type: 'pipeline', amount: 66, expectedDate: toInputDate(addDays(now, 2)), confidence: 90, notes: 'Demo only' },
-      { id: uid('asset'), name: 'Long-horizon investment', type: 'investment', amount: 950, expectedDate: '', confidence: 100, notes: 'Demo only' },
-      { id: uid('asset'), name: 'Optional sellable stuff', type: 'hardAsset', amount: 130, expectedDate: '', confidence: 100, notes: 'Demo only' }
+      { id: uid('asset'), name: 'Checking / active cash', type: 'cash', amount: 420, expectedDate: '', confidence: 100, notes: 'Demo number' },
+      { id: uid('asset'), name: 'Protected buffer', type: 'buffer', amount: 250, expectedDate: '', confidence: 100, notes: 'Demo number' },
+      { id: uid('asset'), name: 'Likely DA payout', type: 'pipeline', amount: 66, expectedDate: toInputDate(addDays(now, 2)), confidence: 90, notes: 'Demo number' },
+      { id: uid('asset'), name: 'Portfolio / conditional', type: 'investment', amount: 950, expectedDate: '', confidence: 100, notes: 'Demo number' },
+      { id: uid('asset'), name: 'Sellable misc.', type: 'hardAsset', amount: 130, expectedDate: '', confidence: 100, notes: 'Demo number' }
     ],
     expenses: [
-      { id: uid('expense'), name: 'Rent', amount: 925, cadence: 'monthly', type: 'essential', dueDay: upcomingRent.getDate(), dueDate: '', notes: 'Demo only' },
-      { id: uid('expense'), name: 'Insurance', amount: 86, cadence: 'monthly', type: 'essential', dueDay: addDays(now, 4).getDate(), dueDate: '', notes: 'Demo only' },
-      { id: uid('expense'), name: 'Food + fuel reserve', amount: 280, cadence: 'monthly', type: 'flexible', dueDay: addDays(now, 14).getDate(), dueDate: '', notes: 'Demo only' }
+      { id: uid('expense'), name: 'Rent', amount: 925, cadence: 'monthly', type: 'essential', dueDay: addDays(now, 9).getDate(), dueDate: '', notes: 'Demo number' },
+      { id: uid('expense'), name: 'Insurance', amount: 86, cadence: 'monthly', type: 'essential', dueDay: addDays(now, 4).getDate(), dueDate: '', notes: 'Demo number' },
+      { id: uid('expense'), name: 'Food + fuel reserve', amount: 280, cadence: 'monthly', type: 'flexible', dueDay: addDays(now, 14).getDate(), dueDate: '', notes: 'Demo number' }
     ],
     debts: [
-      { id: uid('debt'), name: 'Credit card', balance: 8950, minPayment: 263, dueDay: addDays(now, 18).getDate(), apr: 18.99, notes: 'Demo only' }
+      { id: uid('debt'), name: 'Credit card', balance: 8950, minPayment: 263, dueDay: addDays(now, 18).getDate(), apr: 18.99, notes: 'Demo number' }
+    ],
+    desires: [
+      { id: uid('desire'), name: 'Hollow Press books', target: 100, saved: 0, notes: 'Optional demo track' },
+      { id: uid('desire'), name: 'Tools', target: 200, saved: 0, notes: 'Optional demo track' },
+      { id: uid('desire'), name: 'Candy / mystery', target: 25, saved: 0, notes: 'Optional demo track' }
     ]
   };
 }
 
 function blankState() {
-  return {
-    version: VERSION,
-    isDemo: false,
-    settings: { taskPayout: 0, chunkSize: 100, forecastDays: 60 },
-    assets: [],
-    expenses: [],
-    debts: []
-  };
+  return { version: VERSION, isDemo: false, settings: { taskPayout: 0, chunkSize: 100, forecastDays: 28 }, assets: [], expenses: [], debts: [], desires: [] };
 }
 
 function normalizeState(raw) {
-  const clean = raw && typeof raw === 'object' ? raw : seededDemo();
+  const source = raw && typeof raw === 'object' ? raw : seedDemo();
+  const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
   return {
     version: VERSION,
-    isDemo: Boolean(clean.isDemo),
+    isDemo: Boolean(source.isDemo),
     settings: {
-      taskPayout: Number(clean.settings?.taskPayout) || 0,
-      chunkSize: Math.max(25, Number(clean.settings?.chunkSize) || 100),
-      forecastDays: clamp(Number(clean.settings?.forecastDays) || 60, 14, 180)
+      taskPayout: Math.max(0, number(source.settings?.taskPayout)),
+      chunkSize: clamp(number(source.settings?.chunkSize, 100), 25, 1000),
+      forecastDays: clamp(number(source.settings?.forecastDays, 28), 14, 60)
     },
-    assets: Array.isArray(clean.assets) ? clean.assets.map((item) => ({
-      id: item.id || uid('asset'),
-      name: String(item.name || 'Untitled asset'),
-      type: ASSET_TYPES[item.type] ? item.type : 'cash',
-      amount: Math.max(0, Number(item.amount) || 0),
-      expectedDate: item.expectedDate || '',
-      confidence: clamp(Number(item.confidence) || 100, 0, 100),
-      notes: String(item.notes || '')
+    assets: Array.isArray(source.assets) ? source.assets.map(item => ({
+      id: item.id || uid('asset'), name: String(item.name || 'Untitled money'), type: ASSET_TYPES[item.type] ? item.type : 'cash', amount: Math.max(0, number(item.amount)), expectedDate: item.expectedDate || '', confidence: clamp(number(item.confidence, 100), 0, 100), notes: String(item.notes || '')
     })) : [],
-    expenses: Array.isArray(clean.expenses) ? clean.expenses.map((item) => ({
-      id: item.id || uid('expense'),
-      name: String(item.name || 'Untitled obligation'),
-      amount: Math.max(0, Number(item.amount) || 0),
-      cadence: item.cadence === 'oneoff' ? 'oneoff' : 'monthly',
-      type: EXPENSE_TYPES[item.type] ? item.type : 'essential',
-      dueDay: clamp(Number(item.dueDay) || 1, 1, 31),
-      dueDate: item.dueDate || '',
-      notes: String(item.notes || '')
+    expenses: Array.isArray(source.expenses) ? source.expenses.map(item => ({
+      id: item.id || uid('expense'), name: String(item.name || 'Untitled obligation'), amount: Math.max(0, number(item.amount)), cadence: item.cadence === 'oneoff' ? 'oneoff' : 'monthly', type: EXPENSE_TYPES[item.type] ? item.type : 'essential', dueDay: clamp(number(item.dueDay, 1), 1, 31), dueDate: item.dueDate || '', notes: String(item.notes || '')
     })) : [],
-    debts: Array.isArray(clean.debts) ? clean.debts.map((item) => ({
-      id: item.id || uid('debt'),
-      name: String(item.name || 'Untitled debt'),
-      balance: Math.max(0, Number(item.balance) || 0),
-      minPayment: Math.max(0, Number(item.minPayment) || 0),
-      dueDay: clamp(Number(item.dueDay) || 1, 1, 31),
-      apr: Math.max(0, Number(item.apr) || 0),
-      notes: String(item.notes || '')
+    debts: Array.isArray(source.debts) ? source.debts.map(item => ({
+      id: item.id || uid('debt'), name: String(item.name || 'Untitled dragon'), balance: Math.max(0, number(item.balance)), minPayment: Math.max(0, number(item.minPayment)), dueDay: clamp(number(item.dueDay, 1), 1, 31), apr: Math.max(0, number(item.apr)), notes: String(item.notes || '')
+    })) : [],
+    desires: Array.isArray(source.desires) ? source.desires.map(item => ({
+      id: item.id || uid('desire'), name: String(item.name || 'Untitled life track'), target: Math.max(0, number(item.target)), saved: Math.max(0, number(item.saved)), notes: String(item.notes || '')
     })) : []
   };
 }
 
 function loadState() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? normalizeState(JSON.parse(saved)) : seededDemo();
+    const current = localStorage.getItem(STORAGE_KEY);
+    if (current) return normalizeState(JSON.parse(current));
+    const old = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (old) return normalizeState(JSON.parse(old));
+    return seedDemo();
   } catch (error) {
-    console.warn('Could not read saved state.', error);
-    return seededDemo();
+    console.warn('Could not read local board state.', error);
+    return seedDemo();
   }
 }
-
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    $('#savedAt').textContent = `Saved ${new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date()).toLowerCase()}`;
+    $('#savedAt').textContent = `SAVED ${new Intl.DateTimeFormat('en-US', { hour:'numeric', minute:'2-digit' }).format(new Date()).toUpperCase()}`;
   } catch (error) {
-    console.warn('Could not save state.', error);
-    $('#savedAt').textContent = 'Local save failed';
+    console.warn('Could not save local board state.', error);
+    $('#savedAt').textContent = 'LOCAL SAVE FAILED';
   }
 }
 
-function getAssetTotal(type) {
-  return state.assets.filter((asset) => asset.type === type).reduce((sum, asset) => sum + asset.amount, 0);
-}
-
-function getMonthlyExpenses() {
-  return state.expenses.filter((expense) => expense.cadence === 'monthly').reduce((sum, expense) => sum + expense.amount, 0);
-}
-
-function getMonthlyDebtMinimums() {
-  return state.debts.reduce((sum, debt) => sum + debt.minPayment, 0);
-}
-
-function getDebtTotal() {
-  return state.debts.reduce((sum, debt) => sum + debt.balance, 0);
-}
-
-function getNextMonthlyDates(day, start, end) {
-  const dates = [];
-  let cursor = new Date(start.getFullYear(), start.getMonth(), 1, 12, 0, 0, 0);
-  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1, 12, 0, 0, 0);
+function assetTotal(type) { return state.assets.filter(item => item.type === type).reduce((sum, item) => sum + item.amount, 0); }
+function monthlyExpenseTotal() { return state.expenses.filter(item => item.cadence === 'monthly').reduce((sum, item) => sum + item.amount, 0); }
+function monthlyMinimumTotal() { return state.debts.reduce((sum, item) => sum + item.minPayment, 0); }
+function debtTotal() { return state.debts.reduce((sum, item) => sum + item.balance, 0); }
+function totalMonthlyWall() { return monthlyExpenseTotal() + monthlyMinimumTotal(); }
+function nextMonthlyDates(dueDay, start, end) {
+  const dates = []; let cursor = new Date(start.getFullYear(), start.getMonth(), 1, 12, 0, 0, 0); const endMonth = new Date(end.getFullYear(), end.getMonth(), 1, 12, 0, 0, 0);
   while (cursor <= endMonth) {
-    const date = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(day, daysInMonth(cursor.getFullYear(), cursor.getMonth())), 12, 0, 0, 0);
+    const date = new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(dueDay, daysInMonth(cursor.getFullYear(), cursor.getMonth())), 12, 0, 0, 0);
     if (date >= start && date <= end) dates.push(date);
     cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1, 12, 0, 0, 0);
   }
@@ -213,588 +157,239 @@ function getNextMonthlyDates(day, start, end) {
 }
 
 function upcomingEvents(days = state.settings.forecastDays) {
-  const start = todayAtNoon();
-  const end = addDays(start, days);
-  const events = [];
-
-  state.assets.filter((asset) => asset.type === 'pipeline' && asset.expectedDate).forEach((asset) => {
-    const date = parseInputDate(asset.expectedDate);
-    if (date && date >= start && date <= end) {
-      const confidence = clamp(asset.confidence, 0, 100);
-      events.push({
-        id: `pipeline-${asset.id}`,
-        kind: 'income',
-        name: asset.name,
-        amount: asset.amount,
-        effectiveAmount: asset.amount * (confidence / 100),
-        date,
-        meta: `${confidence}% confidence · pipeline`
-      });
-    }
+  const start = todayAtNoon(); const end = addDays(start, days); const events = [];
+  state.assets.filter(item => item.type === 'pipeline' && item.expectedDate).forEach(item => {
+    const date = parseInputDate(item.expectedDate);
+    if (date && date >= start && date <= end) events.push({ id: `asset-${item.id}`, sourceId:item.id, source:'asset', kind:'income', name:item.name, amount:item.amount, effectiveAmount:item.amount * (item.confidence / 100), date, meta:`${item.confidence}% confidence` });
   });
-
-  state.expenses.forEach((expense) => {
-    if (expense.cadence === 'oneoff') {
-      const date = parseInputDate(expense.dueDate);
-      if (date && date >= start && date <= end) {
-        events.push({
-          id: `expense-${expense.id}-${toInputDate(date)}`,
-          kind: 'expense',
-          name: expense.name,
-          amount: expense.amount,
-          effectiveAmount: -expense.amount,
-          date,
-          meta: `${EXPENSE_TYPES[expense.type].label} · one-off`
-        });
-      }
+  state.expenses.forEach(item => {
+    if (item.cadence === 'oneoff') {
+      const date = parseInputDate(item.dueDate);
+      if (date && date >= start && date <= end) events.push({ id:`expense-${item.id}-${toInputDate(date)}`,sourceId:item.id,source:'expense',kind:'expense',expenseType:item.type,name:item.name,amount:item.amount,date,meta:'one-off obligation' });
     } else {
-      getNextMonthlyDates(expense.dueDay, start, end).forEach((date) => {
-        events.push({
-          id: `expense-${expense.id}-${toInputDate(date)}`,
-          kind: 'expense',
-          name: expense.name,
-          amount: expense.amount,
-          effectiveAmount: -expense.amount,
-          date,
-          meta: `${EXPENSE_TYPES[expense.type].label} · monthly`
-        });
-      });
+      nextMonthlyDates(item.dueDay, start, end).forEach(date => events.push({ id:`expense-${item.id}-${toInputDate(date)}`,sourceId:item.id,source:'expense',kind:'expense',expenseType:item.type,name:item.name,amount:item.amount,date,meta:'monthly obligation' }));
     }
   });
-
-  state.debts.forEach((debt) => {
-    getNextMonthlyDates(debt.dueDay, start, end).forEach((date) => {
-      events.push({
-        id: `debt-${debt.id}-${toInputDate(date)}`,
-        kind: 'debt',
-        name: `${debt.name} minimum`,
-        amount: debt.minPayment,
-        effectiveAmount: -debt.minPayment,
-        date,
-        meta: `minimum payment · ${money(debt.balance)} remaining`
-      });
-    });
+  state.debts.forEach(item => {
+    nextMonthlyDates(item.dueDay, start, end).forEach(date => events.push({ id:`debt-${item.id}-${toInputDate(date)}`,sourceId:item.id,source:'debt',kind:'debt',name:`${item.name} minimum`,amount:item.minPayment,date,meta:'debt minimum' }));
   });
-
-  const order = { income: 0, expense: 1, debt: 2 };
-  return events.sort((a, b) => a.date - b.date || order[a.kind] - order[b.kind] || a.name.localeCompare(b.name));
+  return events.sort((a,b) => a.date - b.date || (a.kind === 'income' ? -1 : 1));
 }
 
-function calculate() {
-  const activeCash = getAssetTotal('cash');
-  const buffer = getAssetTotal('buffer');
-  const pipeline = getAssetTotal('pipeline');
-  const pipelineWeighted = state.assets.filter((a) => a.type === 'pipeline').reduce((sum, a) => sum + a.amount * (a.confidence / 100), 0);
-  const investment = getAssetTotal('investment');
-  const hardAssets = getAssetTotal('hardAsset');
-  const monthlyExpenses = getMonthlyExpenses();
-  const monthlyDebt = getMonthlyDebtMinimums();
-  const monthlyWall = monthlyExpenses + monthlyDebt;
-  const debtTotal = getDebtTotal();
-  const dailyBurn = monthlyWall / 30;
-  const runwayDays = dailyBurn > 0 ? Math.max(0, Math.floor(activeCash / dailyBurn)) : null;
-  const events = upcomingEvents();
-  let rolling = activeCash;
-  let breach = activeCash < 0 ? todayAtNoon() : null;
-  const mappedEvents = events.map((event) => {
-    rolling += event.effectiveAmount;
-    if (!breach && rolling < 0) breach = event.date;
-    return { ...event, runningBalance: rolling };
+function flowProjection() {
+  const start = todayAtNoon(); let balance = assetTotal('cash'); const events = upcomingEvents(); const points = [{date:start,balance,event:null}]; let breach = null;
+  events.forEach(event => {
+    balance += event.kind === 'income' ? event.effectiveAmount : -event.amount;
+    const point = { date:event.date,balance,event };
+    points.push(point);
+    if (balance < 0 && !breach) breach = point;
   });
-  const end = addDays(todayAtNoon(), state.settings.forecastDays);
-  const essentialCoverage = monthlyWall > 0 ? activeCash / monthlyWall : null;
-  return { activeCash, buffer, pipeline, pipelineWeighted, investment, hardAssets, monthlyExpenses, monthlyDebt, monthlyWall, debtTotal, dailyBurn, runwayDays, events: mappedEvents, breach, end, essentialCoverage };
+  return { start, points, breach, ending:balance };
 }
 
-function escapeHTML(text) {
-  return String(text || '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+function nextObligation() {
+  return upcomingEvents().filter(event => event.kind !== 'income').sort((a,b)=>a.date-b.date)[0] || null;
 }
 
-function chunksHTML(amount, color, chunkSize = state.settings.chunkSize) {
-  const unit = Math.max(25, Number(chunkSize) || 100);
-  const full = Math.floor(amount / unit);
-  const remainder = amount - full * unit;
-  const max = 24;
+function chunkMarkup(amount, className, max = 42, label = '') {
+  const size = state.settings.chunkSize;
+  const count = Math.max(0, Math.ceil((Number(amount) || 0) / size));
+  if (!count) return `<div class="empty-state">No ${escapeHTML(label || 'chunks')} placed.</div>`;
+  const shown = Math.min(count, max);
+  let html = Array.from({ length: shown }, () => `<span class="chunk ${className}"></span>`).join('');
+  if (count > shown) html += `<span class="chunk more">+${count - shown}</span>`;
+  return html;
+}
+
+function miniChunkMarkup(amount, className, max = 8) {
+  const count = Math.max(0, Math.ceil((Number(amount) || 0) / state.settings.chunkSize));
+  const shown = Math.min(count, max);
+  return Array.from({ length: shown }, () => `<span class="${className}"></span>`).join('') + (count > shown ? `<span class="${className}"></span>` : '');
+}
+
+function renderHeader() {
+  const cash = assetTotal('cash'); const wall = totalMonthlyWall(); const next = nextObligation(); const days = state.settings.forecastDays;
+  $('#activeCashReadout').textContent = money(cash); $('#bridgeTotal').textContent = money(cash); $('#monthlyWallTotal').textContent = money(wall); $('#minimumTotal').textContent = `${money(monthlyMinimumTotal())} / month`; $('#debtTotal').textContent = money(debtTotal());
+  $('#taskPayout').textContent = state.settings.taskPayout ? money(state.settings.taskPayout) : '—';
+  const taskText = state.settings.taskPayout ? `${Math.ceil((state.settings.taskPayout / state.settings.chunkSize) * 10) / 10} chunk(s) of matter added to true cash.` : 'Set the usual complete-task payout in settings.';
+  $('#taskImpactText').textContent = taskText;
+  if (!next) {
+    $('#countdownNumber').textContent = 'OPEN'; $('#countdownLabel').textContent = 'No timed obligation is placed yet.';
+  } else {
+    const delta = Math.max(0, daysBetween(todayAtNoon(), next.date));
+    $('#countdownNumber').textContent = `T−${delta}`; $('#countdownLabel').textContent = `${next.name} · ${money(next.amount)} · ${dateLabel(next.date)}`;
+  }
+  const projection = flowProjection();
+  let verdict;
+  if (!state.assets.length && !state.expenses.length && !state.debts.length) verdict = 'The board is empty. Place the first true number and the map will begin to exist.';
+  else if (projection.breach) verdict = `Active cash becomes negative after ${projection.breach.event.name}. The wall needs another route before ${dateLabel(projection.breach.date)}.`;
+  else if (cash >= wall && wall > 0) verdict = `The first monthly wall is funded by true cash. The next decision is about protecting or accelerating.`;
+  else if (wall > 0) verdict = `True cash covers ${Math.round((cash / wall) * 100)}% of the baseline monthly wall. The remaining terrain still needs a route.`;
+  else verdict = `No monthly wall is defined. Place obligations before asking the board to forecast survival.`;
+  $('#verdictText').textContent = verdict;
+  $('#demoBanner').hidden = !state.isDemo;
+}
+
+function renderTimeBoard() {
+  const start = todayAtNoon(); const numberOfDays = state.settings.forecastDays; const events = upcomingEvents(numberOfDays); const map = new Map();
+  events.forEach(event => { const key = toInputDate(event.date); if (!map.has(key)) map.set(key, []); map.get(key).push(event); });
+  const cells = [];
+  for (let index = 0; index < numberOfDays; index += 1) {
+    const date = addDays(start, index); const list = map.get(toInputDate(date)) || []; const income = list.some(event => event.kind === 'income'); const expense = list.some(event => event.kind === 'expense'); const debt = list.some(event => event.kind === 'debt'); const isCritical = list.some(event => event.kind !== 'income' && event.amount >= Math.max(assetTotal('cash'), 1));
+    const pips = list.slice(0,3).map(event => `<span class="event-pip ${event.kind === 'income' ? '' : event.kind}"></span>`).join('') + (list.length > 3 ? '<span class="event-pip more"></span>' : '');
+    cells.push(`<div class="time-cell ${index === 0 ? 'today' : ''} ${income ? 'has-income' : ''} ${expense || debt ? 'has-expense' : ''} ${isCritical ? 'is-critical' : ''}" title="${escapeAttr(list.map(event => `${event.name}: ${money(event.amount)}`).join(' · ') || dateLabel(date))}"><span class="time-day">${index === 0 ? 'NOW' : weekDay(date)}</span><span class="time-date">${date.getDate()}</span><div class="time-events">${pips}</div></div>`);
+  }
+  const corridor = $('#timeCorridor'); corridor.style.setProperty('--days', numberOfDays); corridor.innerHTML = cells.join('');
+  $('#timeStart').textContent = `${dateLabel(start)} / now`; $('#timeEnd').textContent = `${dateLabel(addDays(start, numberOfDays - 1))} / horizon`;
+  const soon = events.filter(event => event.kind !== 'income').slice(0, 6);
+  $('#nextEvents').innerHTML = soon.length ? soon.map(event => `<button class="event-card ${event.kind === 'income' ? 'income' : ''}" data-edit-type="${event.source}" data-edit-id="${event.sourceId}"><span class="event-date">${dateLabel(event.date)} · ${escapeHTML(event.meta)}</span><strong>${escapeHTML(event.name)}</strong><b>${money(event.amount)}</b></button>`).join('') : '<div class="empty-state">No timed expenses in the current corridor. That may be true, or it may mean the board still needs data.</div>';
+}
+
+function renderAssets() {
+  Object.keys(ASSET_TYPES).forEach(type => {
+    const total = assetTotal(type); const items = state.assets.filter(item => item.type === type);
+    $(`#total-${type}`).textContent = money(total);
+    $(`#chunks-${type}`).innerHTML = chunkMarkup(total, '', type === 'cash' ? 48 : 28, ASSET_TYPES[type].title.toLowerCase());
+    const list = $(`#items-${type}`);
+    list.innerHTML = items.length ? items.map(item => `<button class="item-chip" data-edit-type="asset" data-edit-id="${item.id}" title="Edit ${escapeAttr(item.name)}">${escapeHTML(item.name)} · ${money(item.amount)}${type === 'pipeline' && item.expectedDate ? ` · ${dateLabel(parseInputDate(item.expectedDate))}` : ''}</button>`).join('') : '<span class="item-chip">PLACE ENTRY</span>';
+  });
+}
+
+function renderObligations() {
+  const all = [...state.expenses].sort((a,b) => (a.cadence === 'monthly' ? 0 : 1) - (b.cadence === 'monthly' ? 0 : 1) || a.amount - b.amount);
+  const board = $('#obligationBoard');
+  if (!all.length) { board.innerHTML = '<div class="empty-state">No obligations placed. Add rent, insurance, food/fuel, utilities, one-offs—whatever becomes materially true.</div>'; return; }
+  board.innerHTML = all.map(item => {
+    const due = item.cadence === 'monthly' ? `monthly · day ${item.dueDay}` : `one-off · ${item.dueDate ? dateLabel(parseInputDate(item.dueDate)) : 'date required'}`;
+    return `<button class="obligation ${item.type}" data-edit-type="expense" data-edit-id="${item.id}"><div class="obligation-top"><span>${escapeHTML(EXPENSE_TYPES[item.type].label)}</span><span>${due}</span></div><div class="obligation-name">${escapeHTML(item.name)}</div><div class="obligation-amount">${money(item.amount)}</div><div class="obligation-chunks">${miniChunkMarkup(item.amount, 'block')}</div><div class="obligation-bottom"><span>${item.cadence === 'monthly' ? 'RECURRING' : 'SINGLE IMPACT'}</span><span>EDIT ↗</span></div></button>`;
+  }).join('');
+}
+
+function renderDebts() {
+  const board = $('#debtBoard');
+  if (!state.debts.length) { board.innerHTML = '<div class="empty-state">No dragons released. Add a debt account to make its mass and monthly bite visible.</div>'; return; }
+  board.innerHTML = state.debts.map(debt => {
+    const scale = Math.max(state.settings.chunkSize, Math.ceil(debt.balance / 100) / 10 * state.settings.chunkSize);
+    const count = Math.ceil(debt.balance / scale); const shown = Math.min(count, 100);
+    const cells = Array.from({ length: shown }, () => '<span class="dragon-cell"></span>').join('') + (count > shown ? `<span class="dragon-cell more">+${count - shown}</span>` : '');
+    const label = scale === state.settings.chunkSize ? `${money(scale)} cells` : `${money(scale)} cells (adaptive)`;
+    return `<button class="dragon-card" data-edit-type="debt" data-edit-id="${debt.id}"><div class="dragon-top"><span>DEBT DRAGON</span><span>${debt.apr ? `${debt.apr.toFixed(2)}% APR` : 'APR unspecified'}</span></div><div class="dragon-name">${escapeHTML(debt.name)}</div><div class="dragon-balance">${money(debt.balance)}</div><div class="dragon-meta"><span>minimum ${money(debt.minPayment)} / month</span><span>due day ${debt.dueDay}</span><span>${label}</span></div><div class="dragon-grid">${cells}</div><div class="dragon-bottom"><span>EDIT DRAGON ↗</span><strong>${Math.max(0, Math.ceil(debt.balance / Math.max(debt.minPayment,1)))} MINIMUM PAYMENTS*</strong></div></button>`;
+  }).join('');
+}
+
+function renderDesires() {
+  const board = $('#desireBoard');
+  if (!state.desires.length) { board.innerHTML = '<div class="empty-state">No sanctioned life tracks yet. This is where books, tools, toys, travel, weirdness, and non-punitive desire get a bounded address.</div>'; return; }
+  board.innerHTML = state.desires.map(item => {
+    const percent = item.target ? clamp((item.saved / item.target) * 100, 0, 100) : 0;
+    return `<button class="desire-card" data-edit-type="desire" data-edit-id="${item.id}"><div class="desire-top"><span>TRACKED DESIRE</span><span>${Math.round(percent)}%</span></div><div class="desire-name">${escapeHTML(item.name)}</div><div class="desire-amount">${money(item.saved)} <small>/ ${money(item.target)}</small></div><div class="desire-line"><span style="width:${percent}%"></span></div><p class="desire-caption">${escapeHTML(item.notes || 'A bounded place for something that makes life feel like life.')}</p></button>`;
+  }).join('');
+}
+
+function render() { renderHeader(); renderTimeBoard(); renderAssets(); renderObligations(); renderDebts(); renderDesires(); saveState(); }
+
+function field(label, name, type = 'text', value = '', options = {}) {
+  const extraClass = options.full ? ' full' : ''; const attributes = options.attrs || ''; const hint = options.hint ? `<small>${escapeHTML(options.hint)}</small>` : '';
+  if (type === 'select') return `<label class="field${extraClass}"><span>${escapeHTML(label)}</span><select name="${name}" ${attributes}>${options.choices.map(choice => `<option value="${escapeAttr(choice.value)}" ${String(choice.value) === String(value) ? 'selected' : ''}>${escapeHTML(choice.label)}</option>`).join('')}</select>${hint}</label>`;
+  if (type === 'textarea') return `<label class="field${extraClass}"><span>${escapeHTML(label)}</span><textarea name="${name}" ${attributes}>${escapeHTML(value)}</textarea>${hint}</label>`;
+  return `<label class="field${extraClass}"><span>${escapeHTML(label)}</span><input type="${type}" name="${name}" value="${escapeAttr(value)}" ${attributes}/>${hint}</label>`;
+}
+
+function openEditor(type, id = null, forcedAssetType = null) {
+  editing = { type, id, forcedAssetType };
+  const isNew = !id; let item;
+  if (id) item = (type === 'asset' ? state.assets : type === 'expense' ? state.expenses : type === 'debt' ? state.debts : state.desires).find(entry => entry.id === id);
+  const title = { asset:'Money object', expense:'Obligation', debt:'Debt dragon', desire:'Sanctioned life track' }[type];
+  $('#dialogKicker').textContent = isNew ? `NEW ${title.toUpperCase()}` : `EDIT ${title.toUpperCase()}`;
+  $('#dialogTitle').textContent = isNew ? `Place a ${title.toLowerCase()}` : `Edit ${title.toLowerCase()}`;
   let html = '';
-  const visibleFull = Math.min(full, max);
-  for (let index = 0; index < visibleFull; index += 1) html += '<i class="chunk"></i>';
-  if (full > max) html += `<i class="chunk more">+${full - max}</i>`;
-  if (remainder >= unit * .75) html += '<i class="chunk partial-75"></i>';
-  else if (remainder >= unit * .5) html += '<i class="chunk partial-50"></i>';
-  else if (remainder >= unit * .2) html += '<i class="chunk partial-25"></i>';
-  return `<div class="chunk-grid" style="--layer:${color}">${html || '<span class="helper-copy">No chunks here</span>'}</div>`;
-}
-
-function renderNow(metrics) {
-  const { activeCash, monthlyWall, runwayDays, debtTotal, breach, end, essentialCoverage } = metrics;
-  const demoNotice = $('#demoNotice');
-  demoNotice.hidden = !state.isDemo;
-
-  $('#metricCash').textContent = money(activeCash);
-  $('#metricCashMeta').textContent = activeCash > 0 ? 'Immediate liquid / active' : 'No true cash tracked yet';
-  $('#metricWall').textContent = money(monthlyWall);
-  $('#metricWallMeta').textContent = `${money(metrics.monthlyExpenses)} living · ${money(metrics.monthlyDebt)} debt mins`;
-  $('#metricRunway').textContent = runwayDays === null ? '—' : `${runwayDays}d`;
-  $('#metricRunwayMeta').textContent = runwayDays === null ? 'Add recurring obligations to calculate' : 'Using active cash only';
-  $('#metricDebt').textContent = money(debtTotal);
-  $('#metricDebtMeta').textContent = state.debts.length === 0 ? 'No dragons tracked' : `${money(metrics.monthlyDebt)} minimum / month`;
-
-  const signal = $('#signalStatus');
-  signal.classList.remove('at-risk', 'alert');
-  if (monthlyWall <= 0 && activeCash <= 0) {
-    $('#signalTitle').textContent = 'The field is blank. Start with what is real.';
-    $('#signalBody').textContent = 'Add true cash, recurring obligations, and debt minimums. The instrument will turn them into a map.';
-    signal.textContent = 'AWAITING SIGNAL';
-  } else if (activeCash <= 0) {
-    $('#signalTitle').textContent = 'No active cash is on the board.';
-    $('#signalBody').textContent = 'The map can still show reserves and obligations, but it cannot claim present-day runway without true cash.';
-    signal.textContent = 'ACTIVE DEFICIT';
-    signal.classList.add('at-risk');
-  } else if (breach) {
-    $('#signalTitle').textContent = `Projected breach: ${dateLabel(breach)}.`;
-    $('#signalBody').textContent = `The forecast runs below zero after the current sequence of expected inflows and scheduled obligations. This is not doom; it identifies the next wall.`;
-    signal.textContent = 'THREAT VISIBLE';
-    signal.classList.add('at-risk');
-  } else if (essentialCoverage !== null && essentialCoverage < .7) {
-    $('#signalTitle').textContent = `Active cash funds ${Math.floor(essentialCoverage * 100)}% of the monthly wall.`;
-    $('#signalBody').textContent = `You have ${money(activeCash)} that is truly active. Pipeline and protected reserves exist, but they are not the same thing as cash on hand.`;
-    signal.textContent = 'TIGHT BUT MAPPED';
-    signal.classList.add('alert');
-  } else if (essentialCoverage !== null && essentialCoverage < 1) {
-    $('#signalTitle').textContent = `The monthly wall is ${Math.floor(essentialCoverage * 100)}% funded by active cash.`;
-    $('#signalBody').textContent = `Close enough to be legible, not enough to forget. The next income chunk has a specific job waiting for it.`;
-    signal.textContent = 'PARTIAL COVERAGE';
-    signal.classList.add('alert');
-  } else if (monthlyWall > 0) {
-    $('#signalTitle').textContent = `Active cash clears the monthly wall.`;
-    $('#signalBody').textContent = `The board remains projected-safe through ${dateLabel(end)} at the current recorded cadence. More surplus means more room to injure the debt dragons.`;
-    signal.textContent = 'CLEAR FIELD';
-  } else {
-    $('#signalTitle').textContent = 'The board is holding liquid terrain.';
-    $('#signalBody').textContent = 'There are no recurring obligations recorded yet, so the model cannot estimate runway. Add the monthly wall when ready.';
-    signal.textContent = 'OPEN FIELD';
-  }
-
-  renderTaskImpact(metrics);
-  renderPreviewTimeline(metrics.events);
-}
-
-function renderTaskImpact(metrics) {
-  const task = state.settings.taskPayout;
-  $('#taskPayout').textContent = task > 0 ? money(task) : '—';
-  const node = $('#taskImpactText');
-  if (!task) {
-    node.textContent = 'Set a typical task payout in Settings. This becomes the app’s “what does one more task change?” lens.';
-    return;
-  }
-  const wall = metrics.monthlyWall;
-  const currentCoverage = wall > 0 ? metrics.activeCash / wall : null;
-  const nextCoverage = wall > 0 ? (metrics.activeCash + task) / wall : null;
-  const debt = metrics.debtTotal;
-  const chunks = task / state.settings.chunkSize;
-
-  if (wall <= 0) {
-    node.innerHTML = `<b>${money(task)}</b> adds ${chunks.toFixed(chunks < 1 ? 2 : 1)} visual chunks to active cash. Add the monthly wall to see the actual defensive effect.`;
-  } else if (metrics.activeCash < wall && metrics.activeCash + task >= wall) {
-    node.innerHTML = `<b>${money(task)}</b> closes the current monthly-wall gap. It takes active coverage from ${Math.floor(currentCoverage * 100)}% to ${Math.floor(nextCoverage * 100)}%.`;
-  } else if (metrics.activeCash < wall) {
-    const remaining = Math.max(0, wall - metrics.activeCash - task);
-    node.innerHTML = `<b>${money(task)}</b> takes monthly-wall coverage from ${Math.floor(currentCoverage * 100)}% to ${Math.floor(nextCoverage * 100)}%. <b>${money(remaining)}</b> would still remain unfunded.`;
-  } else if (debt > 0) {
-    const debtPercent = (task / debt) * 100;
-    node.innerHTML = `If aimed at debt after obligations, <b>${money(task)}</b> removes ${debtPercent < .1 ? debtPercent.toFixed(2) : debtPercent.toFixed(1)}% of the recorded dragon total. Small bites become anatomy.`;
-  } else {
-    const days = metrics.dailyBurn > 0 ? Math.floor(task / metrics.dailyBurn) : null;
-    node.innerHTML = `<b>${money(task)}</b> becomes additional optionality${days ? ` — about ${days} days of recorded burn` : ''}.`;
-  }
-}
-
-function renderPreviewTimeline(events) {
-  const node = $('#previewTimeline');
-  const near = events.filter((event) => event.date <= addDays(todayAtNoon(), 30)).slice(0, 8);
-  if (!near.length) {
-    node.innerHTML = '<div class="empty-state"><strong>No timed events in the next 30 days.</strong><span>Add pipeline dates or recurring obligations to see time become visible.</span></div>';
-    return;
-  }
-  node.innerHTML = near.map((event) => `
-    <article class="mini-event ${event.kind}">
-      <time>${dateLabel(event.date)}</time>
-      <strong title="${escapeHTML(event.name)}">${escapeHTML(event.name)}</strong>
-      <span>${event.kind === 'income' ? '+' : '−'}${money(event.amount)}</span>
-    </article>
-  `).join('');
-}
-
-function renderFlow(metrics) {
-  const order = ['hardAsset', 'pipeline', 'cash', 'buffer', 'investment'];
-  const ladder = $('#liquidityLadder');
-  ladder.innerHTML = order.map((type) => {
-    const definition = ASSET_TYPES[type];
-    const assets = state.assets.filter((asset) => asset.type === type);
-    const total = assets.reduce((sum, asset) => sum + asset.amount, 0);
-    let descriptor = definition.description;
-    if (type === 'pipeline' && assets.length) {
-      const weighted = assets.reduce((sum, asset) => sum + asset.amount * (asset.confidence / 100), 0);
-      descriptor = `${money(weighted)} weighted expectation across ${assets.length} item${assets.length === 1 ? '' : 's'}.`;
-    }
-    return `
-      <article class="ladder-card" style="--layer:${definition.color}">
-        <p class="ladder-label">${definition.short}</p>
-        <strong>${money(total)}</strong>
-        <small>${descriptor}</small>
-        ${chunksHTML(total, definition.color)}
-      </article>
-    `;
-  }).join('');
-
-  const timeline = $('#timelineBoard');
-  if (metrics.events.length) {
-    timeline.innerHTML = metrics.events.map((event) => `
-      <article class="flow-event ${event.kind}">
-        <p class="event-date">${fullDateLabel(event.date)}</p>
-        <h4>${escapeHTML(event.name)}</h4>
-        <div class="event-amount">${event.kind === 'income' ? '+' : '−'}${money(event.amount)}</div>
-        <span class="event-subtext">${escapeHTML(event.meta)}</span>
-        <span class="running-balance ${event.runningBalance < 0 ? 'negative' : ''}">after: ${money(event.runningBalance)}</span>
-      </article>
-    `).join('');
-  } else {
-    timeline.innerHTML = '<div class="empty-state"><strong>The timeline has no events yet.</strong><span>Pipeline items need an expected date. Obligations need a recurring day or one-off due date.</span></div>';
-  }
-
-  const debts = $('#debtBoard');
-  if (state.debts.length) {
-    debts.innerHTML = state.debts.map((debt) => {
-      const percentage = debt.balance > 0 && debt.minPayment > 0 ? ((debt.minPayment / debt.balance) * 100).toFixed(1) : '0';
-      return `
-        <article class="dragon-card">
-          <p>Debt dragon</p>
-          <h4>${escapeHTML(debt.name)}</h4>
-          <strong>${money(debt.balance)}</strong>
-          <span>${money(debt.minPayment)} minimum / mo · ${debt.apr ? `${debt.apr.toFixed(2)}% APR` : 'APR not entered'} · ${percentage}% monthly bite</span>
-        </article>
-      `;
-    }).join('');
-  } else {
-    debts.innerHTML = '<div class="empty-state"><strong>No dragons on record.</strong><span>That might mean none exist, or simply that the map does not know about them yet.</span></div>';
-  }
-}
-
-function renderLedger() {
-  renderLedgerList('#assetLedger', state.assets, 'asset');
-  renderLedgerList('#expenseLedger', state.expenses, 'expense');
-  renderLedgerList('#debtLedger', state.debts, 'debt');
-}
-
-function ledgerDetails(item, type) {
   if (type === 'asset') {
-    const def = ASSET_TYPES[item.type];
-    const date = item.type === 'pipeline' && item.expectedDate ? ` · expected ${dateLabel(parseInputDate(item.expectedDate))} at ${item.confidence}%` : '';
-    return { color: def.color, typeLabel: `${def.label}${date}`, amount: money(item.amount) };
+    const data = item || { name:'', type:forcedAssetType || 'cash', amount:'', expectedDate:'', confidence:100, notes:'' };
+    html = field('Name', 'name', 'text', data.name, { attrs:'required autofocus', hint:'Use a name that remains legible at a glance.' }) +
+      field('Liquidity territory', 'type', 'select', data.type, { choices:Object.entries(ASSET_TYPES).map(([value, info]) => ({ value, label:info.label })) }) +
+      field('Amount', 'amount', 'number', data.amount, { attrs:'min="0" step="1" inputmode="decimal" required' }) +
+      field('Expected landing date', 'expectedDate', 'date', data.expectedDate, { hint:'Only relevant for pipeline money.' }) +
+      field('Pipeline confidence %', 'confidence', 'number', data.confidence, { attrs:'min="0" max="100" step="1" inputmode="numeric"' }) +
+      field('Notes', 'notes', 'textarea', data.notes, { full:true, hint:'Optional. Notes live locally with the board.' });
   }
   if (type === 'expense') {
-    const timing = item.cadence === 'monthly' ? `monthly · day ${item.dueDay}` : `one-off · ${item.dueDate ? dateLabel(parseInputDate(item.dueDate)) : 'no date'}`;
-    return { color: EXPENSE_TYPES[item.type].color, typeLabel: `${EXPENSE_TYPES[item.type].label} · ${timing}`, amount: money(item.amount) };
+    const data = item || { name:'', amount:'', cadence:'monthly', type:'essential', dueDay:1, dueDate:'', notes:'' };
+    html = field('Name', 'name', 'text', data.name, { attrs:'required autofocus' }) + field('Amount', 'amount', 'number', data.amount, { attrs:'min="0" step="1" inputmode="decimal" required' }) +
+      field('Cadence', 'cadence', 'select', data.cadence, { choices:[{value:'monthly',label:'Monthly / recurring'}, {value:'oneoff',label:'One-off'}] }) + field('Impact type', 'type', 'select', data.type, { choices:Object.entries(EXPENSE_TYPES).map(([value,info])=>({value,label:info.label})) }) +
+      field('Monthly due day', 'dueDay', 'number', data.dueDay, { attrs:'min="1" max="31" step="1" inputmode="numeric"', hint:'Used only for monthly entries.' }) + field('One-off due date', 'dueDate', 'date', data.dueDate, { hint:'Used only for one-off entries.' }) +
+      field('Notes', 'notes', 'textarea', data.notes, { full:true });
   }
-  return { color: '#e181b5', typeLabel: `${money(item.minPayment)} min / month · day ${item.dueDay}${item.apr ? ` · ${item.apr.toFixed(2)}% APR` : ''}`, amount: money(item.balance) };
-}
-
-function renderLedgerList(selector, items, type) {
-  const node = $(selector);
-  if (!items.length) {
-    const template = $('#emptyStateTemplate');
-    node.innerHTML = template.innerHTML;
-    return;
+  if (type === 'debt') {
+    const data = item || { name:'', balance:'', minPayment:'', dueDay:1, apr:'', notes:'' };
+    html = field('Dragon name', 'name', 'text', data.name, { attrs:'required autofocus' }) + field('Current balance', 'balance', 'number', data.balance, { attrs:'min="0" step="1" inputmode="decimal" required' }) +
+      field('Monthly minimum', 'minPayment', 'number', data.minPayment, { attrs:'min="0" step="1" inputmode="decimal" required' }) + field('Due day', 'dueDay', 'number', data.dueDay, { attrs:'min="1" max="31" step="1" inputmode="numeric" required' }) +
+      field('APR', 'apr', 'number', data.apr, { attrs:'min="0" max="100" step="0.01" inputmode="decimal"' }) + field('Notes', 'notes', 'textarea', data.notes, { full:true });
   }
-  node.innerHTML = items.map((item) => {
-    const detail = ledgerDetails(item, type);
-    return `
-      <article class="ledger-item">
-        <i class="ledger-pip" style="--item-color:${detail.color}"></i>
-        <div>
-          <h4>${escapeHTML(item.name)}</h4>
-          <div class="ledger-meta">${escapeHTML(detail.typeLabel)}</div>
-        </div>
-        <strong class="ledger-amount">${detail.amount}</strong>
-        <button class="edit-row" data-edit-type="${type}" data-edit-id="${item.id}">Edit</button>
-      </article>
-    `;
-  }).join('');
-}
-
-function render() {
-  const metrics = calculate();
-  renderNow(metrics);
-  renderFlow(metrics);
-  renderLedger();
-  saveState();
-}
-
-function assetFields(item = {}) {
-  const type = item.type || 'cash';
-  const expectedDate = item.expectedDate || '';
-  const confidence = item.confidence ?? 100;
-  return `
-    <label class="field"><span>Name</span><input required name="name" maxlength="60" placeholder="e.g., checking account" value="${escapeHTML(item.name || '')}" /></label>
-    <div class="field-row">
-      <label class="field"><span>Amount</span><input required name="amount" inputmode="decimal" type="number" min="0" step="1" value="${Number(item.amount) || ''}" /></label>
-      <label class="field"><span>Asset layer</span><select name="type">${Object.entries(ASSET_TYPES).map(([key, def]) => `<option value="${key}" ${key === type ? 'selected' : ''}>${def.label}</option>`).join('')}</select></label>
-    </div>
-    <div class="pipeline-fields" ${type === 'pipeline' ? '' : 'hidden'}>
-      <div class="field-row">
-        <label class="field"><span>Expected landing date</span><input name="expectedDate" type="date" value="${expectedDate}" /></label>
-        <label class="field"><span>Confidence %</span><input name="confidence" inputmode="numeric" type="number" min="0" max="100" step="1" value="${confidence}" /></label>
-      </div>
-      <p class="helper-copy">Pipeline is shown at full value, but its date-flow effect is weighted by confidence.</p>
-    </div>
-    <label class="field"><span>Notes (optional)</span><textarea name="notes" maxlength="300" placeholder="Anything useful to remember…">${escapeHTML(item.notes || '')}</textarea></label>
-  `;
-}
-
-function expenseFields(item = {}) {
-  const cadence = item.cadence || 'monthly';
-  const type = item.type || 'essential';
-  return `
-    <label class="field"><span>Name</span><input required name="name" maxlength="60" placeholder="e.g., rent" value="${escapeHTML(item.name || '')}" /></label>
-    <div class="field-row">
-      <label class="field"><span>Amount</span><input required name="amount" inputmode="decimal" type="number" min="0" step="1" value="${Number(item.amount) || ''}" /></label>
-      <label class="field"><span>Kind</span><select name="type">${Object.entries(EXPENSE_TYPES).map(([key, def]) => `<option value="${key}" ${key === type ? 'selected' : ''}>${def.label}</option>`).join('')}</select></label>
-    </div>
-    <label class="field"><span>Cadence</span><select name="cadence"><option value="monthly" ${cadence === 'monthly' ? 'selected' : ''}>Monthly recurring</option><option value="oneoff" ${cadence === 'oneoff' ? 'selected' : ''}>One-off event</option></select></label>
-    <div class="monthly-fields" ${cadence === 'monthly' ? '' : 'hidden'}>
-      <label class="field"><span>Day of month due</span><input name="dueDay" inputmode="numeric" type="number" min="1" max="31" step="1" value="${Number(item.dueDay) || 1}" /></label>
-    </div>
-    <div class="oneoff-fields" ${cadence === 'oneoff' ? '' : 'hidden'}>
-      <label class="field"><span>Due date</span><input name="dueDate" type="date" value="${item.dueDate || toInputDate(addDays(todayAtNoon(), 7))}" /></label>
-    </div>
-    <label class="field"><span>Notes (optional)</span><textarea name="notes" maxlength="300" placeholder="Anything useful to remember…">${escapeHTML(item.notes || '')}</textarea></label>
-  `;
-}
-
-function debtFields(item = {}) {
-  return `
-    <label class="field"><span>Debt name</span><input required name="name" maxlength="60" placeholder="e.g., credit card" value="${escapeHTML(item.name || '')}" /></label>
-    <div class="field-row">
-      <label class="field"><span>Current balance</span><input required name="balance" inputmode="decimal" type="number" min="0" step="1" value="${Number(item.balance) || ''}" /></label>
-      <label class="field"><span>Minimum payment</span><input required name="minPayment" inputmode="decimal" type="number" min="0" step="1" value="${Number(item.minPayment) || ''}" /></label>
-    </div>
-    <div class="field-row">
-      <label class="field"><span>Due day</span><input name="dueDay" inputmode="numeric" type="number" min="1" max="31" step="1" value="${Number(item.dueDay) || 1}" /></label>
-      <label class="field"><span>APR % (optional)</span><input name="apr" inputmode="decimal" type="number" min="0" max="100" step="0.01" value="${Number(item.apr) || ''}" /></label>
-    </div>
-    <label class="field"><span>Notes (optional)</span><textarea name="notes" maxlength="300" placeholder="Anything useful to remember…">${escapeHTML(item.notes || '')}</textarea></label>
-  `;
-}
-
-function wireDynamicFields(type) {
-  if (type === 'asset') {
-    const selector = $('#editorFields select[name="type"]');
-    selector?.addEventListener('change', () => {
-      const visible = selector.value === 'pipeline';
-      $('.pipeline-fields').hidden = !visible;
-    });
+  if (type === 'desire') {
+    const data = item || { name:'', target:'', saved:'', notes:'' };
+    html = field('Track name', 'name', 'text', data.name, { attrs:'required autofocus', hint:'Books, tools, travel, toys, weirdness—whatever gets a bounded home.' }) + field('Target amount', 'target', 'number', data.target, { attrs:'min="0" step="1" inputmode="decimal" required' }) +
+      field('Already allocated', 'saved', 'number', data.saved, { attrs:'min="0" step="1" inputmode="decimal"' }) + field('Why it exists', 'notes', 'textarea', data.notes, { full:true });
   }
-  if (type === 'expense') {
-    const selector = $('#editorFields select[name="cadence"]');
-    selector?.addEventListener('change', () => {
-      const monthly = selector.value === 'monthly';
-      $('.monthly-fields').hidden = !monthly;
-      $('.oneoff-fields').hidden = monthly;
-    });
-  }
-}
-
-function openEditor(type, id = null) {
-  const collectionName = type === 'asset' ? 'assets' : type === 'expense' ? 'expenses' : 'debts';
-  const existing = id ? state[collectionName].find((item) => item.id === id) : null;
-  editing = { type, id };
-  $('#dialogEyebrow').textContent = existing ? 'EDIT ITEM' : `NEW ${type.toUpperCase()}`;
-  $('#dialogTitle').textContent = existing ? `Edit ${existing.name}` : type === 'asset' ? 'Add an asset layer' : type === 'expense' ? 'Add an obligation' : 'Add a debt dragon';
-  $('#deleteItemBtn').hidden = !existing;
-  $('#editorFields').innerHTML = type === 'asset' ? assetFields(existing) : type === 'expense' ? expenseFields(existing) : debtFields(existing);
-  wireDynamicFields(type);
+  $('#editorFields').innerHTML = html;
+  $('#deleteBtn').hidden = isNew;
   $('#editorDialog').showModal();
 }
 
-function closeEditor() {
-  $('#editorDialog').close();
-  editing = null;
-}
-
-function formNumber(data, key, fallback = 0) {
-  const number = Number(data.get(key));
-  return Number.isFinite(number) ? number : fallback;
-}
-
+function readForm(form) { return Object.fromEntries(new FormData(form).entries()); }
+function numberOrZero(value) { return Math.max(0, Number(value) || 0); }
 function saveEditor(event) {
-  event.preventDefault();
-  if (!editing) return;
-  const data = new FormData(event.currentTarget);
-  const { type, id } = editing;
-  const collectionName = type === 'asset' ? 'assets' : type === 'expense' ? 'expenses' : 'debts';
-  let item;
-  if (type === 'asset') {
-    item = {
-      id: id || uid('asset'),
-      name: String(data.get('name') || '').trim(),
-      type: ASSET_TYPES[data.get('type')] ? data.get('type') : 'cash',
-      amount: Math.max(0, formNumber(data, 'amount')),
-      expectedDate: String(data.get('expectedDate') || ''),
-      confidence: clamp(formNumber(data, 'confidence', 100), 0, 100),
-      notes: String(data.get('notes') || '').trim()
-    };
-  } else if (type === 'expense') {
-    item = {
-      id: id || uid('expense'),
-      name: String(data.get('name') || '').trim(),
-      amount: Math.max(0, formNumber(data, 'amount')),
-      cadence: data.get('cadence') === 'oneoff' ? 'oneoff' : 'monthly',
-      type: EXPENSE_TYPES[data.get('type')] ? data.get('type') : 'essential',
-      dueDay: clamp(formNumber(data, 'dueDay', 1), 1, 31),
-      dueDate: String(data.get('dueDate') || ''),
-      notes: String(data.get('notes') || '').trim()
-    };
-  } else {
-    item = {
-      id: id || uid('debt'),
-      name: String(data.get('name') || '').trim(),
-      balance: Math.max(0, formNumber(data, 'balance')),
-      minPayment: Math.max(0, formNumber(data, 'minPayment')),
-      dueDay: clamp(formNumber(data, 'dueDay', 1), 1, 31),
-      apr: Math.max(0, formNumber(data, 'apr')),
-      notes: String(data.get('notes') || '').trim()
-    };
-  }
-  if (!item.name) return;
-  const index = state[collectionName].findIndex((entry) => entry.id === item.id);
-  if (index >= 0) state[collectionName][index] = item;
-  else state[collectionName].push(item);
-  state.isDemo = false;
-  closeEditor();
-  render();
+  event.preventDefault(); const data = readForm(event.currentTarget); const { type, id } = editing; let item;
+  if (type === 'asset') item = { id:id || uid('asset'), name:data.name.trim(), type:ASSET_TYPES[data.type] ? data.type : 'cash', amount:numberOrZero(data.amount), expectedDate:data.expectedDate || '', confidence:clamp(Number(data.confidence) || 0,0,100), notes:data.notes.trim() };
+  if (type === 'expense') item = { id:id || uid('expense'), name:data.name.trim(), amount:numberOrZero(data.amount), cadence:data.cadence === 'oneoff' ? 'oneoff' : 'monthly', type:EXPENSE_TYPES[data.type] ? data.type : 'essential', dueDay:clamp(Number(data.dueDay) || 1,1,31), dueDate:data.dueDate || '', notes:data.notes.trim() };
+  if (type === 'debt') item = { id:id || uid('debt'), name:data.name.trim(), balance:numberOrZero(data.balance), minPayment:numberOrZero(data.minPayment), dueDay:clamp(Number(data.dueDay) || 1,1,31), apr:numberOrZero(data.apr), notes:data.notes.trim() };
+  if (type === 'desire') item = { id:id || uid('desire'), name:data.name.trim(), target:numberOrZero(data.target), saved:numberOrZero(data.saved), notes:data.notes.trim() };
+  const list = type === 'asset' ? state.assets : type === 'expense' ? state.expenses : type === 'debt' ? state.debts : state.desires;
+  const oldIndex = list.findIndex(entry => entry.id === item.id);
+  if (oldIndex >= 0) list[oldIndex] = item; else list.push(item);
+  state.isDemo = false; $('#editorDialog').close(); render();
 }
-
-function deleteEditingItem() {
-  if (!editing?.id) return;
-  const label = editing.type === 'asset' ? 'asset' : editing.type === 'expense' ? 'obligation' : 'debt dragon';
-  if (!window.confirm(`Delete this ${label} from the local board?`)) return;
-  const collectionName = editing.type === 'asset' ? 'assets' : editing.type === 'expense' ? 'expenses' : 'debts';
-  state[collectionName] = state[collectionName].filter((item) => item.id !== editing.id);
-  state.isDemo = false;
-  closeEditor();
-  render();
-}
-
-function switchView(viewName) {
-  $$('.mode-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.view === viewName));
-  $$('[data-view-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.viewPanel === viewName));
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function exportData() {
-  const payload = { exportedAt: new Date().toISOString(), app: 'Chunk Solvency', data: state };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `chunk-solvency-backup-${toInputDate(todayAtNoon())}.json`;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function importData(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const raw = JSON.parse(reader.result);
-      const incoming = raw.data || raw;
-      if (!incoming || typeof incoming !== 'object') throw new Error('Not a Chunk backup.');
-      if (!window.confirm('Replace the current local board with this backup?')) return;
-      state = normalizeState(incoming);
-      render();
-    } catch (error) {
-      window.alert(`Could not import that file. ${error.message}`);
-    }
-  };
-  reader.readAsText(file);
-}
-
-function openSettings() {
-  $('#settingTaskPayout').value = state.settings.taskPayout || '';
-  $('#settingChunkSize').value = state.settings.chunkSize || 100;
-  $('#settingForecastDays').value = state.settings.forecastDays || 60;
-  $('#settingsDialog').showModal();
+function deleteEditing() {
+  if (!editing?.id) return; const list = editing.type === 'asset' ? state.assets : editing.type === 'expense' ? state.expenses : editing.type === 'debt' ? state.debts : state.desires;
+  const found = list.find(entry => entry.id === editing.id); if (!found) return; if (!confirm(`Delete “${found.name}” from the board?`)) return;
+  const index = list.findIndex(entry => entry.id === editing.id); list.splice(index, 1); state.isDemo = false; $('#editorDialog').close(); render();
 }
 
 function saveSettings(event) {
-  event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  state.settings.taskPayout = Math.max(0, formNumber(data, 'taskPayout'));
-  state.settings.chunkSize = Math.max(25, formNumber(data, 'chunkSize', 100));
-  state.settings.forecastDays = clamp(formNumber(data, 'forecastDays', 60), 14, 180);
-  $('#settingsDialog').close();
+  event.preventDefault(); state.settings.taskPayout = numberOrZero($('#taskPayoutInput').value); state.settings.chunkSize = clamp(Number($('#chunkSizeInput').value) || 100,25,1000); state.settings.forecastDays = clamp(Number($('#forecastDaysInput').value) || 28,14,60); $('#settingsDialog').close(); render();
+}
+function openSettings() { $('#taskPayoutInput').value = state.settings.taskPayout; $('#chunkSizeInput').value = state.settings.chunkSize; $('#forecastDaysInput').value = state.settings.forecastDays; $('#settingsDialog').showModal(); }
+
+function exportState() {
+  const payload = { exportedAt:new Date().toISOString(), app:'CHUNK // SOLVENCY', version:VERSION, state };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'}); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href=url; anchor.download=`chunk-solvency-backup-${toInputDate(todayAtNoon())}.json`; document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
+}
+function importState(file) {
+  if (!file) return; const reader = new FileReader(); reader.onload = () => {
+    try { const data = JSON.parse(reader.result); state = normalizeState(data.state || data); state.isDemo = false; render(); alert('Board imported. The local browser state has been replaced.'); }
+    catch (error) { alert('That file was not a valid CHUNK board backup.'); }
+  }; reader.readAsText(file);
+}
+
+function handleBoardClick(event) {
+  const add = event.target.closest('[data-add]'); if (add) { const mode = add.dataset.add; openEditor(mode === 'asset' ? 'asset' : mode === 'expense' ? 'expense' : mode === 'debt' ? 'debt' : 'desire'); return; }
+  const edit = event.target.closest('[data-edit-type]'); if (edit) { openEditor(edit.dataset.editType, edit.dataset.editId); return; }
+  const territory = event.target.closest('[data-territory]'); if (territory) { openEditor('asset', null, territory.dataset.territory); }
+}
+function handleKeyDown(event) {
+  const territory = event.target.closest?.('[data-territory]');
+  if (territory && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openEditor('asset', null, territory.dataset.territory); }
+}
+
+function initialise() {
+  $('#exportBtn').addEventListener('click', exportState); $('#importBtn').addEventListener('click', () => $('#importInput').click()); $('#importInput').addEventListener('change', event => importState(event.target.files[0]));
+  $('#settingsBtn').addEventListener('click', openSettings); $('#taskImpactBtn').addEventListener('click', openSettings); $('#editorForm').addEventListener('submit', saveEditor); $('#deleteBtn').addEventListener('click', deleteEditing); $('#closeDialogBtn').addEventListener('click', () => $('#editorDialog').close()); $('#cancelBtn').addEventListener('click', () => $('#editorDialog').close());
+  $('#settingsForm').addEventListener('submit', saveSettings); $('#closeSettingsBtn').addEventListener('click', () => $('#settingsDialog').close()); $('#cancelSettingsBtn').addEventListener('click', () => $('#settingsDialog').close());
+  $('#clearDemoBtn').addEventListener('click', () => { if (confirm('Start a clean board? Demo terrain will be removed.')) { state = blankState(); render(); }});
+  $('#loadDemoBtn').addEventListener('click', () => { if (confirm('Replace the current board with demo terrain? Export first if you want a backup.')) { state = seedDemo(); render(); }});
+  $('#resetBtn').addEventListener('click', () => { if (confirm('Erase all local board data? This cannot be undone unless you exported a backup.')) { state = blankState(); render(); }});
+  document.addEventListener('click', handleBoardClick); document.addEventListener('keydown', handleKeyDown);
+  if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
   render();
 }
 
-function resetAll() {
-  if (!window.confirm('Erase every saved number from this browser only? Export a backup first if you want to keep anything.')) return;
-  state = blankState();
-  $('#settingsDialog').close();
-  render();
-}
-
-function bindEvents() {
-  $$('.mode-tab').forEach((tab) => tab.addEventListener('click', () => switchView(tab.dataset.view)));
-  $$('[data-jump-view]').forEach((button) => button.addEventListener('click', () => switchView(button.dataset.jumpView)));
-  $$('[data-add]').forEach((button) => button.addEventListener('click', () => openEditor(button.dataset.add)));
-  $('#addFlowItemBtn').addEventListener('click', () => openEditor('asset'));
-  $('#editorForm').addEventListener('submit', saveEditor);
-  $('#closeDialogBtn').addEventListener('click', closeEditor);
-  $('#cancelDialogBtn').addEventListener('click', closeEditor);
-  $('#deleteItemBtn').addEventListener('click', deleteEditingItem);
-  $('#editorDialog').addEventListener('click', (event) => { if (event.target === $('#editorDialog')) closeEditor(); });
-
-  document.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-edit-type]');
-    if (button) openEditor(button.dataset.editType, button.dataset.editId);
-  });
-
-  $('#settingsBtn').addEventListener('click', openSettings);
-  $('#taskPayoutBtn').addEventListener('click', openSettings);
-  $('#closeSettingsBtn').addEventListener('click', () => $('#settingsDialog').close());
-  $('#cancelSettingsBtn').addEventListener('click', () => $('#settingsDialog').close());
-  $('#settingsForm').addEventListener('submit', saveSettings);
-  $('#resetAllBtn').addEventListener('click', resetAll);
-  $('#settingsDialog').addEventListener('click', (event) => { if (event.target === $('#settingsDialog')) $('#settingsDialog').close(); });
-
-  $('#exportBtn').addEventListener('click', exportData);
-  $('#importBtn').addEventListener('click', () => $('#importInput').click());
-  $('#importInput').addEventListener('change', (event) => {
-    const [file] = event.target.files;
-    if (file) importData(file);
-    event.target.value = '';
-  });
-
-  $('#clearDemoBtn').addEventListener('click', () => {
-    if (!window.confirm('Replace the demo terrain with an empty local board?')) return;
-    state = blankState();
-    render();
-  });
-  $('#loadDemoBtn').addEventListener('click', () => {
-    if (!window.confirm('Replace the current local board with demo terrain? Export first if you need a backup.')) return;
-    state = seededDemo();
-    render();
-  });
-}
-
-function registerServiceWorker() {
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch((error) => console.warn('Service worker registration failed.', error)));
-  }
-}
-
-bindEvents();
-render();
-registerServiceWorker();
+document.addEventListener('DOMContentLoaded', initialise);

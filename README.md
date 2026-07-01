@@ -1,153 +1,116 @@
-# CHUNK // SOLVENCY
+# CHUNK // SOLVENCY — v0.2
 
-A private, local-first visual financial instrument.
+A **private, local-first financial terrain board** built around the actual whiteboard logic:
 
-It is **not** connected to a bank, does not create an account, and does not send numbers to a server. The app is a static website. Your editable financial state saves inside the browser on the device where you use it.
+- time is a corridor;
+- money has different liquidity temperatures;
+- bills are a warm monthly wall;
+- debt is visible mass;
+- desire gets a bounded place instead of being treated as treason.
 
-## What this first version does
+This version is a deeper rebuild of v0.1. It remains a static web app: no npm, no Node, no server, no accounts, no database, no bank link, no tracking.
 
-- Shows five distinct asset layers: hard assets, pipeline, immediate cash, protected buffer, and investments.
-- Calculates active cash, monthly wall, active-cash runway, debt total, and a forecast through upcoming scheduled events.
-- Turns pipeline + due dates + recurring bills + debt minimums into one continuous time flow.
-- Tracks debt balances and monthly minimums as “debt dragons.”
-- Answers the practical question: **what does one more task actually change?**
-- Saves every edit locally and automatically.
-- Exports/imports an encrypted-by-nobody-but-you JSON backup file. Treat this backup as private financial data.
-- Is installable from Safari to an iPhone Home Screen after GitHub Pages hosting.
+## The important privacy model
 
-## Important privacy rule
+Your financial values save **inside the browser on the device where you use the app**.
 
-**Do not put a backup JSON file in this repository.**
+GitHub Pages hosts the code only. The live board is not written into GitHub unless you manually upload an exported backup file—which you should never do.
 
-GitHub hosts this app’s code. Your live values are stored in browser local storage, so they do not automatically go into GitHub. A JSON export is different: it contains your actual numbers. Keep it in Files/iCloud Drive/private storage only.
+- PC board and iPhone board are separate local states.
+- Use **EXPORT** to create a JSON backup.
+- Use **IMPORT** to move that private JSON between devices.
+- Do not commit the backup JSON to the repository.
 
-Also: browser storage belongs to one exact device + one exact website address. Your phone and your PC will each have their own local board unless you export from one and import to the other. Before changing the repository name or Pages URL, export a backup first.
+## What v0.2 does
 
----
+- **Time corridor:** shows the next 14–60 days as physical cells, with money arriving and obligations becoming hot.
+- **Liquidity territories:** hard assets, pipeline, true cash, protected buffer, and investments live as distinct territories with different meanings.
+- **Monthly wall:** recurring and one-off obligations become visible warm blocks.
+- **Debt dragons:** balances turn into a field of cells. Each cell is a chunk of visible mass. The cell scale adapts if the balance is very large.
+- **Sanctioned life tracks:** books, tools, toys, travel, candy, art material, etc. can have a bounded, visible allocation goal.
+- **One full task event:** this is intentionally a complete-task readout, not a “do twenty minutes” productivity gimmick. It shows how one actual finished DA task changes the true-cash terrain.
+- **Automatic browser saving** plus private JSON export/import.
+- **Phone-first PWA structure:** works as a normal site, and can be added to an iPhone Home Screen through Safari after GitHub Pages deployment.
 
-# First launch on your PC
-
-1. Unzip this folder somewhere boring and permanent, such as `Documents/Projects/chunk-solvency`.
-2. Open **VS Code**.
-3. Choose **File → Open Folder** and select the `chunk-solvency` folder.
-4. For a fast preview, open `index.html` in a browser.
-   - The interface, editing, and local save all work this way.
-   - The fully offline “installed app” behavior only activates once it is hosted or served through a local web server.
-5. You will initially see **demo terrain**. It is fake data purely so the interface has a visible body.
-   - Press **Start clean** at the top to erase it.
-   - Then add your own cash, obligations, and debt dragons.
-
-## Recommended local preview (optional)
-
-If you already use the VS Code extension **Live Server**, right-click `index.html` and choose **Open with Live Server**. That is only for previewing; it is not required for GitHub Pages.
-
----
-
-# Put it on GitHub Pages
-
-This project does not need npm, Node, a terminal, a database, or a build process.
-
-## Easiest browser-only route
-
-1. On GitHub, create a new repository called something simple, such as `chunk-solvency`.
-2. Choose **Public** for the simplest free Pages setup.
-   - This exposes the code, but not the browser-local financial state you enter after deployment.
-   - Do **not** upload financial exports or screenshots containing sensitive numbers.
-3. Open the empty repository page.
-4. Click **Add file → Upload files**.
-5. Drag in the **contents inside** this folder:
-
-   ```text
-   chunk-solvency/
-   ├── index.html
-   ├── styles.css
-   ├── app.js
-   ├── manifest.json
-   ├── sw.js
-   ├── .nojekyll
-   └── icons/
-   ```
-
-   Do not upload the ZIP itself. Do not create a second nested `chunk-solvency/chunk-solvency` layer.
-6. Scroll down and click **Commit changes**.
-7. In the repository, open **Settings → Pages**.
-8. Under **Build and deployment**, choose **Deploy from a branch**.
-9. Set branch to **main**, folder to **/(root)**, then click **Save**.
-10. GitHub will show the published URL after it builds. It normally follows this pattern:
-
-   ```text
-   https://YOUR-GITHUB-NAME.github.io/chunk-solvency/
-   ```
-
-11. Open that URL on your PC first. Make one fake edit, refresh, and confirm it stays. Then erase/reset it or load your real board.
-
-GitHub Pages can publish static files directly from the root of a branch; this project is structured specifically for that simple route.
-
----
-
-# Put it on your iPhone Home Screen
-
-1. Open the GitHub Pages URL in **Safari** on your iPhone.
-2. Tap **Share**.
-3. Scroll and select **Add to Home Screen**.
-4. Turn on **Open as Web App** if Safari presents the toggle.
-5. Tap **Add**.
-
-You should now have a CHUNK icon that opens separately from regular Safari tabs.
-
-### First-time behavior
-
-- The app needs internet for the first hosted launch so Safari can load it.
-- Once opened, it registers an offline cache for its basic shell.
-- Your entered state stays inside that Home Screen app’s browser storage.
-- The phone board and the PC board are separate. Use **Export** / **Import** to move your state across devices deliberately.
-
----
-
-# How to use the model
-
-## 1. Put money in its proper layer
-
-- **Immediate cash**: checking / physical cash / money usable today.
-- **Pipeline**: money expected but not yet settled. Give it an expected date and confidence percentage.
-- **Protected buffer**: savings intentionally held outside active flow.
-- **Investment**: capital that could be sold, but may create a loss or cost future upside.
-- **Hard asset**: possessions you *could* sell under pressure. This is intentionally the least “real” money layer.
-
-Only **Immediate cash** powers the headline runway. That is on purpose: the app refuses to pretend speculative or protected money is already cash in your hand.
-
-## 2. Add obligations with timing
-
-- **Monthly recurring** obligations become recurring entries in the flow.
-- **One-off** obligations appear on their specific date.
-- Add debt accounts separately: their minimums automatically show in the timeline and the monthly wall.
-
-## 3. Calibrate one task
-
-In **Settings**, enter a normal or conservative expected payout for one full task. The app uses it only as a perception tool. It does not turn DA into fractional work; it shows what a complete task changes once completed.
-
----
-
-# Folder map
+## Folder structure
 
 ```text
-chunk-solvency/
-├── index.html        # App structure
-├── styles.css        # Visual design / responsive phone layout
-├── app.js            # State, calculations, interactions, storage
-├── manifest.json     # Home Screen app identity
-├── sw.js             # Offline cache / PWA behavior
-├── .nojekyll         # Makes GitHub Pages serve the static files directly
-├── icons/            # Home Screen / browser icons
-└── README.md         # This guide
+chunk-solvency-v0.2/
+├── index.html
+├── styles.css
+├── app.js
+├── manifest.json
+├── sw.js
+├── .nojekyll
+├── .gitignore
+├── icons/
+│   ├── icon-192.png
+│   ├── icon-512.png
+│   └── apple-touch-icon.png
+└── README.md
 ```
 
----
+## First local test
 
-# Version 0.1 boundaries
+1. Unzip the project folder somewhere permanent, such as `Documents/Projects/`.
+2. Open the folder in VS Code.
+3. Double-click `index.html` or right-click it and choose **Open with Live Server** if you already use that extension.
+4. You will see fake demo terrain. It exists only to give the board a physical body on first launch.
+5. Tap **START CLEAN**, then add your actual layers and obligations.
 
-This is deliberately not yet a bank-dashboard clone.
+The basic interface works from a normal local file. The service-worker/offline shell activates after it is served from a website such as GitHub Pages.
 
-There is currently no automatic bank syncing, account login, cloud sync, notifications, multi-user access, charts library, or native iOS wrapper. Those are later choices—not foundational requirements. The core job right now is to find out whether the visual flow, liquidity layers, threat gradient, runway logic, and debt anatomy change how it feels to look at money.
+## Put it on GitHub Pages — browser-only route
 
-When you have used this for a few days, the next features should be chosen from lived friction rather than imagined product scope.
+1. Create a new GitHub repository, preferably called `chunk-solvency`.
+2. Choose **Public** for the simplest GitHub Pages setup. That exposes the app code, **not** the local values you input later.
+3. In the empty repository, click **Add file → Upload files**.
+4. Upload the *contents inside this folder*:
+
+   ```text
+   index.html
+   styles.css
+   app.js
+   manifest.json
+   sw.js
+   .nojekyll
+   .gitignore
+   icons/
+   README.md
+   ```
+
+   Do not upload the ZIP itself. Do not create an accidental nested route like `chunk-solvency/chunk-solvency/index.html`.
+
+5. Commit the uploaded files to `main`.
+6. In the GitHub repository go to **Settings → Pages**.
+7. Under **Build and deployment**, select **Deploy from a branch**.
+8. Select branch **main**, folder **/(root)**, then press **Save**.
+9. After deployment, GitHub will provide a URL like:
+
+   ```text
+   https://YOUR-GITHUB-USERNAME.github.io/chunk-solvency/
+   ```
+
+10. Open that URL on desktop first. Make one fake edit and refresh to prove local persistence. Then reset or enter your actual board.
+
+## Put it on iPhone Home Screen
+
+1. Open the GitHub Pages address in **Safari** on iPhone.
+2. Tap the Share icon.
+3. Choose **Add to Home Screen**.
+4. Turn on **Open as Web App** if Safari displays that option.
+5. Tap **Add**.
+
+The Home Screen version uses its own local browser storage. So it is normal for the PC and iPhone boards to begin empty relative to each other. Export/import is the intentional bridge.
+
+## Updating from v0.1
+
+v0.2 will try to read an existing v0.1 local board if it finds one in the same browser and deployed URL. It does not overwrite your old v0.1 state, but it can bring the old assets, obligations, and debt data into the new visual system.
+
+Before updating a live app, use **EXPORT** in v0.1 anyway. Treat this as a real financial instrument: keep a backup before moving terrain.
+
+## Current boundaries
+
+This is not yet a bank sync app, automatic data importer, tax estimator, or a native Xcode package. That is intentional.
+
+The core question here is whether looking at money as **spatial matter moving through threat and time** creates better decisions than looking at it as flat text. Once that is proven in lived use, future upgrades can be chosen from actual friction instead of imagined app scope.

@@ -1,0 +1,3 @@
+# Private financial exports — never commit these
+chunk-solvency-backup-*.json
+*.DS_Store

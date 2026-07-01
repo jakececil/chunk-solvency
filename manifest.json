@@ -1,14 +1,13 @@
 {
-  "name": "Chunk — Solvency Instrument",
+  "name": "CHUNK // SOLVENCY",
   "short_name": "Chunk",
-  "description": "A local-first visual financial solvency instrument.",
+  "description": "A local-first visual solvency board.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#101321",
-  "theme_color": "#101321",
-  "orientation": "portrait-primary",
+  "background_color": "#0d1016",
+  "theme_color": "#0d1016",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
