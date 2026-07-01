@@ -1,6 +1,6 @@
-const VERSION = 12;
-const KEY = 'chunk-solvency-v12';
-const OLD_KEYS = ['chunk-solvency-v11', 'chunk-solvency-v10', 'chunk-solvency-v9', 'chunk-solvency-v8', 'chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
+const VERSION = 13;
+const KEY = 'chunk-solvency-v13';
+const OLD_KEYS = ['chunk-solvency-v12', 'chunk-solvency-v11', 'chunk-solvency-v10', 'chunk-solvency-v9', 'chunk-solvency-v8', 'chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
 
 const A = {
   hardAsset: ['Hard assets', 'HARD ASSET', 'hard', 'Sellable possessions. Least liquid.'],
@@ -99,6 +99,7 @@ function blank() {
       cardMode: 'exact',
       colorway: 'spectrum',
       ambientMotion: 'drift',
+      ambientSpeed: 1.6,
       customProfiles: [],
       customProfileId: '',
       cycleDeadline: nextCycleISO(),
@@ -120,7 +121,7 @@ function demo() {
   return {
     version: VERSION,
     isDemo: true,
-    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', colorway: 'spectrum', ambientMotion: 'drift', customProfiles: [], customProfileId: '', cycleDeadline: nextCycleISO(), hiddenSegments: {}, segmentOrder: { in: [], out: [] } },
+    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', colorway: 'spectrum', ambientMotion: 'drift', ambientSpeed: 1.6, customProfiles: [], customProfileId: '', cycleDeadline: nextCycleISO(), hiddenSegments: {}, segmentOrder: { in: [], out: [] } },
     territoryTotals: {},
     calendarGoals: {},
     earningsLog: {},
@@ -203,6 +204,8 @@ function normalize(input) {
   const cardMode = source.settings?.cardMode === 'compact' ? 'compact' : 'exact';
   const colorway = ['spectrum', 'midnight', 'marker', 'custom'].includes(source.settings?.colorway) ? source.settings.colorway : 'spectrum';
   const ambientMotion = source.settings?.ambientMotion === 'still' ? 'still' : 'drift';
+  // 0.25 = stately crawl; 4 = plainly observable motion. Old saves receive the new visible default.
+  const ambientSpeed = clamp(n(source.settings?.ambientSpeed, 1.6), 0.25, 4);
   const customProfiles = normalizeProfiles(source);
   const requestedProfile = String(source.settings?.customProfileId || '');
   const customProfileId = customProfiles.some((profile) => profile.id === requestedProfile) ? requestedProfile : customProfiles[0].id;
@@ -219,6 +222,7 @@ function normalize(input) {
       cardMode,
       colorway,
       ambientMotion,
+      ambientSpeed,
       customProfiles,
       customProfileId,
       cycleDeadline,
@@ -322,6 +326,9 @@ function applyColorway(settings = state.settings) {
   const colors = paletteForSettings(settings, mode);
   root.dataset.colorway = mode;
   root.dataset.motion = settings?.ambientMotion === 'still' ? 'still' : 'drift';
+  const motionSpeed = clamp(n(settings?.ambientSpeed, 1.6), 0.25, 4);
+  root.style.setProperty('--drift-speed', String(motionSpeed));
+  root.style.setProperty('--drift-duration', `${Math.max(9, Math.round(42 / motionSpeed))}s`);
   PALETTE_KEYS.forEach((key) => root.style.setProperty(`--${cssVarForPalette(key)}`, colors[key]));
 }
 const updateScrollTone = () => {
@@ -730,7 +737,7 @@ function renderBody() {
   const visibleSegments = allSegments.filter((segment) => isVisible(segment.target));
   const activeSegments = visibleSegments.filter((segment) => segment.amount > 0);
 
-  $('#flowMap').innerHTML = allSegments.map((segment) => {
+  const keyItem = (segment) => {
     const shown = isVisible(segment.target);
     const target = segment.target;
     const id = segmentId(target);
@@ -743,7 +750,12 @@ function renderBody() {
         <button class="reorder" data-move="${id}" data-side="${segment.side}" data-dir="1" aria-label="Move ${esc(segment.name)} later" type="button">↓</button>
       </div>
     </article>`;
-  }).join('');
+  };
+  const keyGroup = (side, labelText, note) => {
+    const group = allSegments.filter((segment) => segment.side === side);
+    return `<section class="mapgroup ${side}"><header><span>${labelText}</span><small>${note}</small></header><div class="mapgrid">${group.map(keyItem).join('')}</div></section>`;
+  };
+  $('#flowMap').innerHTML = `${keyGroup('in', 'IN / AVAILABLE MATTER', 'Reorder liquidity layers here.')}<div class="mapdivider" role="separator"><i></i><span>IN ABOVE · OUT BELOW</span><i></i></div>${keyGroup('out', 'OUT / CLAIMS & PRESSURE', 'Reorder obligations, life reserves, and dragons here.')}`;
 
   const frame = $('#bodyFrame');
   const grid = $('#bodyGrid');
@@ -837,7 +849,6 @@ function renderTerritories() {
     const value = total(type);
     const spec = cardSpec(value);
     return `<button class="territory c-${config[2]} ${spec.wide ? 'wide' : ''}" ${targetAttrs({ k: 'territory', id: type })} type="button">
-      <span class="tk"><span>LIQUIDITY TERRITORY</span><span>${hasOverride(type) ? 'DIRECT TOTAL' : 'ITEM SUM'}</span></span>
       <h3>${config[0]}</h3><strong>${fmt(value)}</strong><p>${config[3]}</p>
       ${miniTiles(value, config[2])}
       <small>${amountDescription(value, quantum())} · ${spec.exact ? 'EXACT MAP' : 'TIGHT MAP'} · TUNE ↔</small>
@@ -1224,10 +1235,15 @@ function stageColorComposer() {
   const profile = draftProfile();
   profile.colors[colorComposerKey] = colorComposerDraft;
   const labelText = PALETTE_LABELS[colorComposerKey];
-  closeColorComposer();
+  // Keep the composer open: staging is a reversible draft action, not an eject button.
   renderPaletteControls('custom');
+  $('#colorComposer').hidden = false;
+  $('#colorComposeName').textContent = PALETTE_LABELS[colorComposerKey];
+  $('#colorComposeInput').value = colorComposerDraft;
+  $('#colorComposeHex').value = colorComposerDraft;
+  $('#colorComposePreview').style.background = colorComposerDraft;
   previewDraft();
-  updatePaletteStatus(`${labelText} staged inside this profile. Save Calibration keeps it; Discard or × abandons it.`);
+  updatePaletteStatus(`${labelText} is staged in this draft. Keep comparing, choose another slot, or × out; only Save Calibration persists the profile.`);
 }
 function renderPaletteControls(mode = $('#colorwayInput')?.value || settingsDraft?.colorway || state.settings.colorway) {
   if (!settingsDraft) settingsDraft = copy(state.settings);
@@ -1279,6 +1295,8 @@ function settings() {
   $('#tailModeInput').value = settingsDraft.tailMode;
   $('#cardModeInput').value = settingsDraft.cardMode;
   $('#ambientMotionInput').value = settingsDraft.ambientMotion || 'drift';
+  $('#ambientSpeedInput').value = clamp(n(settingsDraft.ambientSpeed, 1.6), 0.25, 4);
+  $('#ambientSpeedReadout').textContent = `${Number($('#ambientSpeedInput').value).toFixed(2)}×`;
   $('#colorwayInput').value = settingsDraft.colorway || 'spectrum';
   renderPaletteControls(settingsDraft.colorway);
   open('settingsSheet');
@@ -1295,6 +1313,7 @@ function saveSettings(event) {
   settingsDraft.tailMode = $('#tailModeInput').value === 'inline' ? 'inline' : 'stacked';
   settingsDraft.cardMode = $('#cardModeInput').value === 'compact' ? 'compact' : 'exact';
   settingsDraft.ambientMotion = $('#ambientMotionInput').value === 'still' ? 'still' : 'drift';
+  settingsDraft.ambientSpeed = clamp(n($('#ambientSpeedInput').value, 1.6), 0.25, 4);
   settingsDraft.colorway = ['spectrum', 'midnight', 'marker', 'custom'].includes($('#colorwayInput').value) ? $('#colorwayInput').value : 'spectrum';
   const profile = draftProfile();
   profile.name = ($('#customProfileNameInput').value || 'Custom flow').trim().slice(0, 40);
@@ -1467,6 +1486,17 @@ function init() {
   $('#colorComposeStage').onclick = stageColorComposer;
   $('#colorComposeDiscard').onclick = closeColorComposer;
   $('#colorComposeClose').onclick = closeColorComposer;
+  $('#ambientSpeedInput').oninput = (event) => {
+    if (!settingsDraft) settingsDraft = copy(state.settings);
+    settingsDraft.ambientSpeed = clamp(n(event.target.value, 1.6), 0.25, 4);
+    $('#ambientSpeedReadout').textContent = `${settingsDraft.ambientSpeed.toFixed(2)}×`;
+    previewDraft();
+  };
+  $('#ambientMotionInput').onchange = (event) => {
+    if (!settingsDraft) settingsDraft = copy(state.settings);
+    settingsDraft.ambientMotion = event.target.value === 'still' ? 'still' : 'drift';
+    previewDraft();
+  };
   $('#settingsForm').onsubmit = saveSettings;
   $('#backdrop').onclick = () => close();
   $('#quickDial').onpointerdown = (event) => begin(event, 'q');

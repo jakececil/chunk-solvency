@@ -1,32 +1,31 @@
-# CHUNK // SOLVENCY v1.0
+# CHUNK // SOLVENCY v1.0.1
 
-A private, local-first solvency board. GitHub Pages hosts the interface; live board data remains in the browser on each device.
+A private, local-first solvency board. GitHub Pages hosts the interface; live board data remains in browser storage on each device.
 
-## v1.0: palette control without accidental commitment
+## v1.0.1 — cleanup calibration
 
-- **Color Composer:** palette chips now open a candidate-only composer. Pick a color, inspect it, cancel it, or stage it. Nothing reaches the board until **STAGE COLOR**, and nothing persists until **SAVE CALIBRATION**.
-- **Named custom profile workflow:** **MAKE CUSTOM COPY** clones the active colorway. Name it, stage individual segment colors, then save it into your private palette list. The palette grid stays compact in two columns on mobile.
-- **Pipeline is fully controllable:** every palette profile writes its Pipeline color into the live `--pipe` variable; Pipeline is no longer locked to lavender.
-- **Safer settings topology:** local demo/reset controls remain below all normal calibration and palette controls in a clearly marked destructive zone.
-- **Layer dragging retained:** desktop layer cards can be dragged directly. There is no persistent grip-bar clutter; while dragging, a luminous line appears at the exact insertion boundary. `↑ / ↓` remains available everywhere, including mobile.
-- **Quiet living background:** subtle low-contrast gradient blooms drift behind the board. **Ambient board drift** can switch it off for a still field.
-- **Card header cleanup:** Liquidity cards no longer repeat their category name in the header and title.
+- **Palette Lab is full-width again.** The Board Settings form is two columns for ordinary fields; the Custom Profile Lab and Local Board Tools always span the entire sheet. Palette slots remain a readable two-column grid, including on mobile.
+- **Destructive controls are isolated.** Load Demo Terrain and Start Clean live in their own full-width danger zone beneath normal board and palette calibration.
+- **Color Composer stays put.** Staging a color no longer ejects the composer. Try values, stage them to the temporary draft, keep comparing, then close or discard at leisure. Only **Save Calibration** persists the custom profile.
+- **Motion speed control.** Background drift now has a dedicated speed slider, a stronger visible travel path, and a default that is actually detectable. Set the field to Still at any time.
+- **IN / OUT divider in the tuning key.** Key layers are now in visibly separated groups. Drag-and-drop remains inside each group and preserves the luminous insertion line; arrows remain for mobile and precise nudges.
+- **Liquidity cards reclaimed space.** Repeated “Liquidity Territory / Direct Total” copy is removed so the useful name, amount, and evidence map lead.
 
-## Update from v0.9
+## Update
 
-1. In the existing app, choose **EXPORT** if real values have been entered.
+1. In the current app, choose **EXPORT** if you have entered real values.
 2. Unzip this release.
-3. Copy the **contents inside** `chunk-solvency-v1.0` into the existing local GitHub repo folder.
+3. Copy the **contents inside** `chunk-solvency-v1.0.1` into the existing local GitHub repo folder.
 4. Replace duplicates but keep the hidden `.git` folder.
 5. In VS Code Source Control: stage all → commit → push.
 
 Suggested commit message:
 
 ```text
-Promote CHUNK Solvency to v1.0 palette and layer polish
+Polish v1.0.1 settings layout motion and key groups
 ```
 
-The app automatically migrates a saved v0.9/v1 board into the v1.0 local-storage key on first launch. Export is still the safety line.
+The app searches previous local board keys and migrates the saved terrain forward. Export remains the safety line.
 
 ## GitHub Pages
 
@@ -44,7 +43,7 @@ README.md
 
 GitHub: **Settings → Pages → Deploy from a branch → main → /(root)**.
 
-After deployment, open the direct Pages URL once in Safari before reopening the Home Screen app. This lets the v1.0 service-worker shell replace prior cached code.
+After deployment, open the direct Pages URL once in Safari before reopening the Home Screen app so the new service-worker shell replaces the prior cached build.
 
 ## Privacy
 

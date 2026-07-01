@@ -299,3 +299,70 @@ html[data-motion="still"] body::before{animation:none}
 @media(max-width:620px){.paletteitem>b{font-size:6.5px}.colorcomposerrow{grid-template-columns:39px 39px minmax(0,1fr)}.colorcomposerrow>i,.colorcomposerrow input[type="color"]{width:39px;height:34px}}
 /* Keep the animated field above the base paint but below every interactive panel. */
 body::before{z-index:0}
+
+
+/* v1.0.1: settings topology repair, deliberate palette staging, visible motion calibration */
+:root{--drift-speed:1.6;--drift-duration:26s}
+body::before{animation-duration:var(--drift-duration);opacity:.82;filter:blur(28px) saturate(128%)}
+@keyframes solvency-drift{
+  0%{transform:translate3d(-5.0%,-3.0%,0) scale(1.08) rotate(-3deg)}
+  50%{transform:translate3d(4.2%,3.2%,0) scale(1.13) rotate(2deg)}
+  100%{transform:translate3d(-1.6%,4.5%,0) scale(1.09) rotate(3deg)}
+}
+
+/* Full-width settings sections: the form uses a two-column field grid, but compound tools must never be squeezed into one half. */
+#settingsSheet .fields > .full{grid-column:1 / -1;min-width:0;width:100%}
+#settingsSheet .palettepanel{display:grid;grid-template-columns:1fr;gap:12px;width:100%;padding:15px}
+#settingsSheet .palettepanelhead{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px}
+#settingsSheet .palettepanelhead button{width:auto;min-width:154px;align-self:start}
+#settingsSheet .palettemeta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#settingsSheet .palettegrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px;width:100%}
+#settingsSheet .paletteitem{display:flex!important;min-width:0;min-height:43px;padding:7px 8px!important}
+#settingsSheet .paletteitem>span{font-size:8px!important;letter-spacing:.055em!important;white-space:normal;line-height:1.22}
+#settingsSheet .paletteitem>b{font-size:7px;letter-spacing:.04em}
+#settingsSheet .palettefooter{grid-template-columns:auto minmax(0,1fr);align-items:center}
+#settingsSheet .resettools{display:grid!important;grid-column:1 / -1!important;width:100%;margin-top:10px!important;padding:16px!important}
+#settingsSheet .resettools>div{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#settingsSheet .motionspeed{display:grid;gap:7px}
+#settingsSheet .motionspeed>span{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#settingsSheet .motionspeed>span b{color:var(--cash);font-size:10px;letter-spacing:.08em}
+#settingsSheet .motionspeed input[type="range"]{width:100%;min-height:28px;accent-color:var(--cash);padding:0;background:transparent}
+#settingsSheet .motionspeed small{color:var(--mute);font-size:8px;line-height:1.35}
+
+/* The key now has explicit non-droppable IN/OUT groups; DnD cannot cross the divider. */
+.flowmap{display:block;border:0}
+.mapgroup{display:grid;gap:0}
+.mapgroup>header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border:1px solid var(--strong);border-bottom:0;padding:9px 10px;background:rgba(5,8,13,.42)}
+.mapgroup.in>header{color:var(--cash)}
+.mapgroup.out>header{color:var(--ess)}
+.mapgroup>header span{font-size:9px;letter-spacing:.11em}
+.mapgroup>header small{color:var(--dim);font-size:8px;letter-spacing:.03em}
+.mapgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.mapdivider{display:flex;align-items:center;gap:10px;margin:13px 0;color:var(--dim);font-size:8px;letter-spacing:.14em;text-align:center}
+.mapdivider i{height:1px;flex:1;background:linear-gradient(90deg,transparent,var(--lime),var(--pipe),transparent);box-shadow:0 0 8px color-mix(in srgb,var(--pipe) 40%,transparent)}
+.mapdivider span{white-space:nowrap}
+
+/* Liquidity cards spend their first pixels on useful information, not a repeated category label. */
+.territory h3{margin:0 0 7px;font-size:12px;line-height:1.05}
+.territory strong{font-size:36px}
+.territory p{min-height:39px;margin:9px 0 8px}
+
+@media(max-width:900px){.mapgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){
+  #settingsSheet .palettepanel{padding:12px}
+  #settingsSheet .palettepanelhead{grid-template-columns:1fr;gap:8px}
+  #settingsSheet .palettepanelhead button{width:100%;min-width:0}
+  #settingsSheet .palettemeta{grid-template-columns:1fr 1fr;gap:7px}
+  #settingsSheet .palettegrid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px}
+  #settingsSheet .paletteitem{min-height:45px;padding:6px!important}
+  #settingsSheet .paletteitem>span{gap:5px;font-size:7px!important;letter-spacing:.035em!important}
+  #settingsSheet .paletteitem>span i{width:9px;height:9px;flex-basis:9px}
+  #settingsSheet .paletteitem>b{display:none}
+  #settingsSheet .palettefooter{grid-template-columns:1fr;gap:7px}
+  #settingsSheet .palettefooter button{width:100%}
+  #settingsSheet .resettools>div{grid-template-columns:1fr}
+  .mapgrid{grid-template-columns:1fr}
+  .mapgroup>header{align-items:flex-start;flex-direction:column;gap:3px}
+  .mapdivider{margin:11px 0;font-size:7px}
+  .territory h3{font-size:11px}.territory strong{font-size:31px}.territory p{min-height:28px}
+}

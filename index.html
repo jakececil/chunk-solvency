@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Chunk" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css?v=1.0.1" />
-  <title>CHUNK // SOLVENCY v1.0</title>
+  <link rel="stylesheet" href="styles.css?v=1.0.2" />
+  <title>CHUNK // SOLVENCY v1.0.1</title>
 </head>
 <body>
   <div class="grain"></div>
@@ -234,8 +234,9 @@
         <label class="full"><span>Default body view</span><select id="bodyModeInput"><option value="ledger">In / Out ledger</option><option value="flow">Detailed continuous flow</option><option value="exploded">Exploded territories</option></select></label>
         <label class="full"><span>Default tail behavior</span><select id="tailModeInput"><option value="stacked">Stack each category’s own tail at the side end</option><option value="inline">Keep every tail inline</option></select></label>
         <label class="full"><span>Card evidence density</span><select id="cardModeInput"><option value="exact">Exact maps (expand cards for large amounts)</option><option value="compact">Tight maps (cap visual cells)</option></select></label>
-        <label><span>Ambient board drift</span><select id="ambientMotionInput"><option value="drift">Gentle color drift</option><option value="still">Still field</option></select></label>
+        <label><span>Ambient board drift</span><select id="ambientMotionInput"><option value="drift">Living field</option><option value="still">Still field</option></select></label>
         <label><span>Colorway / board mood</span><select id="colorwayInput"><option value="spectrum">Flow spectrum</option><option value="midnight">Midnight signal</option><option value="marker">Markerboard</option><option value="custom">Custom profile</option></select></label>
+        <label class="full motionspeed"><span>Background motion speed <b id="ambientSpeedReadout">1.60×</b></span><input id="ambientSpeedInput" type="range" min="0.25" max="4" step="0.05" value="1.6" aria-label="Background motion speed" /><small>Slow is atmospheric. Faster makes the blurred color field visibly glide while the board is open.</small></label>
         <p class="full">Flow spectrum moves from cool liquidity into warm pressure. Palette edits below are staged previews: nothing commits until you save calibration, and × / Discard restores the saved board.</p>
         <section class="palettepanel full" aria-label="Custom palette controls">
           <div class="palettepanelhead"><div><span class="micro">CUSTOM PROFILE LAB</span><p>Make a named custom copy from the active mood, then tune each major visual variable without touching the saved board until you are ready.</p></div><button id="paletteNewBtn" type="button">MAKE CUSTOM COPY</button></div>
@@ -262,6 +263,6 @@
     </form>
   </aside>
 
-  <script src="app.js?v=1.0.1"></script>
+  <script src="app.js?v=1.0.2"></script>
 </body>
 </html>
