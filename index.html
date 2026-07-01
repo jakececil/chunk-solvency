@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Chunk" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css?v=0.9" />
-  <title>CHUNK // SOLVENCY v0.9</title>
+  <link rel="stylesheet" href="styles.css?v=1.0.1" />
+  <title>CHUNK // SOLVENCY v1.0</title>
 </head>
 <body>
   <div class="grain"></div>
@@ -119,7 +119,7 @@
           </div>
         </section>
 
-        <div class="keyhead"><span class="micro">CONTINUOUS BODY TUNING KEY</span><small>Use the grip to drag on desktop; ↑ / ↓ works everywhere. Layers only reorder within IN or within OUT.</small></div>
+        <div class="keyhead"><span class="micro">CONTINUOUS BODY TUNING KEY</span><small>Drag a layer on desktop or use ↑ / ↓ everywhere. A lit line shows where a dragged layer will land. Layers only reorder within IN or within OUT.</small></div>
         <div id="flowMap" class="flowmap" aria-label="Continuous body tuning key"></div>
       </div>
     </section>
@@ -234,24 +234,34 @@
         <label class="full"><span>Default body view</span><select id="bodyModeInput"><option value="ledger">In / Out ledger</option><option value="flow">Detailed continuous flow</option><option value="exploded">Exploded territories</option></select></label>
         <label class="full"><span>Default tail behavior</span><select id="tailModeInput"><option value="stacked">Stack each category’s own tail at the side end</option><option value="inline">Keep every tail inline</option></select></label>
         <label class="full"><span>Card evidence density</span><select id="cardModeInput"><option value="exact">Exact maps (expand cards for large amounts)</option><option value="compact">Tight maps (cap visual cells)</option></select></label>
-        <label class="full"><span>Colorway / board mood</span><select id="colorwayInput"><option value="spectrum">Flow spectrum — cool IN / warm OUT</option><option value="midnight">Midnight signal — saturated night neon</option><option value="marker">Markerboard — muted physical inks</option><option value="custom">Custom profile — every major category editable</option></select></label>
-        <p class="full">Flow spectrum runs cool toward true cash and warm toward the wall / dragons. Choose Custom to tune every distinct visual variable: each liquidity class, all expense pressure, life tracks, dragon body, and dragon minimum.</p>
+        <label><span>Ambient board drift</span><select id="ambientMotionInput"><option value="drift">Gentle color drift</option><option value="still">Still field</option></select></label>
+        <label><span>Colorway / board mood</span><select id="colorwayInput"><option value="spectrum">Flow spectrum</option><option value="midnight">Midnight signal</option><option value="marker">Markerboard</option><option value="custom">Custom profile</option></select></label>
+        <p class="full">Flow spectrum moves from cool liquidity into warm pressure. Palette edits below are staged previews: nothing commits until you save calibration, and × / Discard restores the saved board.</p>
         <section class="palettepanel full" aria-label="Custom palette controls">
-          <div class="palettepanelhead"><div><span class="micro">CUSTOM PROFILE LAB</span><p>Build a named palette from any base, then tune individual category colors here or directly from a selected Body segment.</p></div><button id="paletteNewBtn" type="button">NEW FROM CURRENT</button></div>
-          <label class="full"><span>Active custom profile</span><select id="customProfileInput"></select></label>
-          <label class="full"><span>Custom profile name</span><input id="customProfileNameInput" type="text" maxlength="40" placeholder="Custom flow" /></label>
+          <div class="palettepanelhead"><div><span class="micro">CUSTOM PROFILE LAB</span><p>Make a named custom copy from the active mood, then tune each major visual variable without touching the saved board until you are ready.</p></div><button id="paletteNewBtn" type="button">MAKE CUSTOM COPY</button></div>
+          <div class="palettemeta">
+            <label><span>Active custom profile</span><select id="customProfileInput"></select></label>
+            <label><span>Profile name</span><input id="customProfileNameInput" type="text" maxlength="40" placeholder="Custom flow" /></label>
+          </div>
           <div id="paletteGrid" class="palettegrid"></div>
+          <div id="colorComposer" class="colorcomposer" hidden aria-live="polite">
+            <header><div><span class="micro">COLOR COMPOSER</span><b id="colorComposeName">Segment</b></div><button id="colorComposeClose" type="button" aria-label="Close color composer">×</button></header>
+            <p>Choose a candidate without touching the board. <b>STAGE COLOR</b> applies it only to this temporary profile; <b>SAVE CALIBRATION</b> is the actual commit.</p>
+            <div class="colorcomposerrow"><i id="colorComposePreview" aria-hidden="true"></i><input id="colorComposeInput" type="color" value="#a97cff" aria-label="Candidate segment color" /><label><span>HEX</span><input id="colorComposeHex" type="text" inputmode="text" maxlength="7" value="#a97cff" aria-label="Candidate color hex" /></label></div>
+            <div class="colorcomposeractions"><button id="colorComposeDiscard" type="button">CANCEL</button><button id="colorComposeStage" type="button">STAGE COLOR</button></div>
+          </div>
+          <div class="palettefooter"><button id="paletteResetBtn" type="button">RESET TO SPECTRUM</button><small id="paletteStatus">Changes are previewed here. Save Calibration commits them; × / Discard abandons them.</small></div>
         </section>
         <section class="resettools full" aria-label="Board reset tools">
-          <span class="micro">LOCAL BOARD TOOLS</span>
-          <p>These actions affect only this browser’s saved board. Export first when the data matters.</p>
+          <span class="micro">LOCAL BOARD TOOLS · DESTRUCTIVE</span>
+          <p>These actions sit below calibration on purpose. They affect only this browser’s saved board. Export first when the data matters.</p>
           <div><button id="settingsDemoBtn" type="button">LOAD DEMO TERRAIN</button><button id="settingsCleanBtn" class="danger" type="button">START CLEAN</button></div>
         </section>
       </div>
-      <footer><span></span><i></i><button class="primary" type="submit">SAVE CALIBRATION</button></footer>
+      <footer><button class="discard" data-close="settingsSheet" type="button">DISCARD</button><i></i><button class="primary" type="submit">SAVE CALIBRATION</button></footer>
     </form>
   </aside>
 
-  <script src="app.js?v=0.9"></script>
+  <script src="app.js?v=1.0.1"></script>
 </body>
 </html>

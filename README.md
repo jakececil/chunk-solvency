@@ -1,35 +1,32 @@
-# CHUNK // SOLVENCY v0.9
+# CHUNK // SOLVENCY v1.0
 
-A private, local-first solvency board. GitHub Pages hosts the interface; the live board state stays in the browser on each device.
+A private, local-first solvency board. GitHub Pages hosts the interface; live board data remains in the browser on each device.
 
-## v0.9: palette lab + movable Body layers
+## v1.0: palette control without accidental commitment
 
-- **The Continuous Body now comes first.** The IN / OUT physical ledger sits immediately under the Body heading; controls and the tuning key sit below it.
-- **Custom palette profiles.** In **Board settings → Custom profile lab**, create named editable palettes from any base colorway. Every major visual variable is independent:
-  - hard assets, pipeline, true cash, buffer, investments
-  - sanctioned life
-  - one-off, variable/flexible, and fixed/essential pressure
-  - debt minimum and debt body mass
-- **Direct segment recoloring.** Tap any Body segment, then use **Segment color** in its tuning sheet. This automatically creates or updates the active custom profile.
-- **Reorderable layers.** The tuning key now has **↑ / ↓** controls for every segment. On desktop, whole key items can also be dragged by their grip. The system keeps IN and OUT as distinct rows, but you can change priority/order within either side.
-- **Date fields expanded.** Expected landing dates and other date controls now use full-width formatting inside the editor sheets.
-- The old **demo terrain banner** is gone from the main board. Demo/reset tools remain inside Settings.
+- **Color Composer:** palette chips now open a candidate-only composer. Pick a color, inspect it, cancel it, or stage it. Nothing reaches the board until **STAGE COLOR**, and nothing persists until **SAVE CALIBRATION**.
+- **Named custom profile workflow:** **MAKE CUSTOM COPY** clones the active colorway. Name it, stage individual segment colors, then save it into your private palette list. The palette grid stays compact in two columns on mobile.
+- **Pipeline is fully controllable:** every palette profile writes its Pipeline color into the live `--pipe` variable; Pipeline is no longer locked to lavender.
+- **Safer settings topology:** local demo/reset controls remain below all normal calibration and palette controls in a clearly marked destructive zone.
+- **Layer dragging retained:** desktop layer cards can be dragged directly. There is no persistent grip-bar clutter; while dragging, a luminous line appears at the exact insertion boundary. `↑ / ↓` remains available everywhere, including mobile.
+- **Quiet living background:** subtle low-contrast gradient blooms drift behind the board. **Ambient board drift** can switch it off for a still field.
+- **Card header cleanup:** Liquidity cards no longer repeat their category name in the header and title.
 
-## Update from an earlier version
+## Update from v0.9
 
-1. In the existing app, use **EXPORT** once your local board contains real values.
+1. In the existing app, choose **EXPORT** if real values have been entered.
 2. Unzip this release.
-3. Copy the **contents inside** `chunk-solvency-v0.9` into your existing local GitHub repo folder.
-4. Replace duplicates. Keep the repo's hidden `.git` folder intact.
-5. In VS Code Source Control, stage all changes, commit, and push.
+3. Copy the **contents inside** `chunk-solvency-v1.0` into the existing local GitHub repo folder.
+4. Replace duplicates but keep the hidden `.git` folder.
+5. In VS Code Source Control: stage all → commit → push.
 
 Suggested commit message:
 
 ```text
-Install palette profiles and movable Body layers v0.9
+Promote CHUNK Solvency to v1.0 palette and layer polish
 ```
 
-Because the app moves from the v0.8 local-storage key to a newer key, it will automatically import the most recent saved v0.8 board on first launch. The export is still your safety line.
+The app automatically migrates a saved v0.9/v1 board into the v1.0 local-storage key on first launch. Export is still the safety line.
 
 ## GitHub Pages
 
@@ -45,12 +42,12 @@ icons/
 README.md
 ```
 
-In GitHub: **Settings → Pages → Deploy from a branch → main → /(root)**.
+GitHub: **Settings → Pages → Deploy from a branch → main → /(root)**.
 
-After the new version deploys, open the direct Pages URL in Safari once before launching the existing Home Screen icon. This lets the v0.9 service-worker cache replace the previous shell.
+After deployment, open the direct Pages URL once in Safari before reopening the Home Screen app. This lets the v1.0 service-worker shell replace prior cached code.
 
-## Privacy model
+## Privacy
 
-- Financial values persist in browser storage on the individual device.
-- The GitHub repository contains only application code.
-- Exported JSON backups include your actual values. Keep them private; do not commit them to GitHub.
+- Financial values persist in browser storage on the device/browser.
+- The GitHub repository contains application code only.
+- Exported JSON contains financial values. Keep it private and never commit it to GitHub.

@@ -1,6 +1,6 @@
-const VERSION = 10;
-const KEY = 'chunk-solvency-v10';
-const OLD_KEYS = ['chunk-solvency-v9', 'chunk-solvency-v8', 'chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
+const VERSION = 12;
+const KEY = 'chunk-solvency-v12';
+const OLD_KEYS = ['chunk-solvency-v11', 'chunk-solvency-v10', 'chunk-solvency-v9', 'chunk-solvency-v8', 'chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
 
 const A = {
   hardAsset: ['Hard assets', 'HARD ASSET', 'hard', 'Sellable possessions. Least liquid.'],
@@ -80,7 +80,11 @@ let editor = null;
 let sheet = null;
 let drag = null;
 let quickColorKey = null;
+let quickColorDraft = '';
+let settingsDraft = null;
 let draggedLayer = null;
+let colorComposerKey = null;
+let colorComposerDraft = '';
 
 function blank() {
   return {
@@ -94,6 +98,7 @@ function blank() {
       tailMode: 'stacked',
       cardMode: 'exact',
       colorway: 'spectrum',
+      ambientMotion: 'drift',
       customProfiles: [],
       customProfileId: '',
       cycleDeadline: nextCycleISO(),
@@ -115,7 +120,7 @@ function demo() {
   return {
     version: VERSION,
     isDemo: true,
-    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', colorway: 'spectrum', customProfiles: [], customProfileId: '', cycleDeadline: nextCycleISO(), hiddenSegments: {}, segmentOrder: { in: [], out: [] } },
+    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', colorway: 'spectrum', ambientMotion: 'drift', customProfiles: [], customProfileId: '', cycleDeadline: nextCycleISO(), hiddenSegments: {}, segmentOrder: { in: [], out: [] } },
     territoryTotals: {},
     calendarGoals: {},
     earningsLog: {},
@@ -197,6 +202,7 @@ function normalize(input) {
   const cycleDeadline = safeCycleISO(source.settings?.cycleDeadline);
   const cardMode = source.settings?.cardMode === 'compact' ? 'compact' : 'exact';
   const colorway = ['spectrum', 'midnight', 'marker', 'custom'].includes(source.settings?.colorway) ? source.settings.colorway : 'spectrum';
+  const ambientMotion = source.settings?.ambientMotion === 'still' ? 'still' : 'drift';
   const customProfiles = normalizeProfiles(source);
   const requestedProfile = String(source.settings?.customProfileId || '');
   const customProfileId = customProfiles.some((profile) => profile.id === requestedProfile) ? requestedProfile : customProfiles[0].id;
@@ -212,6 +218,7 @@ function normalize(input) {
       tailMode: legacyBeforeSeven ? 'stacked' : (source.settings?.tailMode === 'inline' ? 'inline' : 'stacked'),
       cardMode,
       colorway,
+      ambientMotion,
       customProfiles,
       customProfileId,
       cycleDeadline,
@@ -272,22 +279,29 @@ const minTotal = () => sum(state.debts, 'minPayment');
 const expenseTotal = () => sum(state.expenses.filter((item) => item.cadence === 'monthly'), 'amount');
 const wall = () => expenseTotal() + minTotal();
 const quantum = () => state.settings.cellQuantum === 100 ? 100 : 25;
-function activeCustomProfile() {
-  let profile = (state.settings.customProfiles || []).find((entry) => entry.id === state.settings.customProfileId);
+const cssVarForPalette = (key) => key === 'pipeline' ? 'pipe' : key;
+const copy = (value) => JSON.parse(JSON.stringify(value));
+function activeCustomProfileFor(settings) {
+  settings.customProfiles ??= [];
+  let profile = settings.customProfiles.find((entry) => entry.id === settings.customProfileId);
   if (!profile) {
     profile = { id: uid('palette'), name: 'Custom flow', colors: { ...PALETTES.spectrum } };
-    (state.settings.customProfiles ??= []).push(profile);
-    state.settings.customProfileId = profile.id;
+    settings.customProfiles.push(profile);
+    settings.customProfileId = profile.id;
   }
   profile.colors = sanitizeColors(profile.colors, PALETTES.spectrum);
   return profile;
 }
-function paletteFor(mode = state.settings.colorway, profileId = state.settings.customProfileId) {
+function paletteForSettings(settings, mode = settings?.colorway || 'spectrum', profileId = settings?.customProfileId) {
   if (mode === 'custom') {
-    const profile = (state.settings.customProfiles || []).find((entry) => entry.id === profileId) || activeCustomProfile();
+    const profile = (settings?.customProfiles || []).find((entry) => entry.id === profileId) || activeCustomProfileFor(settings);
     return sanitizeColors(profile.colors, PALETTES.spectrum);
   }
-  return { ...PALETTES[mode] || PALETTES.spectrum };
+  return { ...(PALETTES[mode] || PALETTES.spectrum) };
+}
+function activeCustomProfile() { return activeCustomProfileFor(state.settings); }
+function paletteFor(mode = state.settings.colorway, profileId = state.settings.customProfileId) {
+  return paletteForSettings(state.settings, mode, profileId);
 }
 function resolvedColor(key) { return paletteFor()[key] || PALETTES.spectrum[key] || '#ffffff'; }
 function ensureCustomFrom(mode = state.settings.colorway) {
@@ -301,16 +315,15 @@ function setCustomColor(key, color) {
   if (!PALETTE_KEYS.includes(key) || !next) return;
   const profile = ensureCustomFrom(state.settings.colorway);
   profile.colors[key] = next;
-  applyColorway();
-  save();
 }
-function applyColorway() {
+function applyColorway(settings = state.settings) {
   const root = document.documentElement;
-  const mode = state.settings.colorway || 'spectrum';
-  const colors = paletteFor(mode);
+  const mode = settings?.colorway || 'spectrum';
+  const colors = paletteForSettings(settings, mode);
   root.dataset.colorway = mode;
-  PALETTE_KEYS.forEach((key) => root.style.setProperty(`--${key}`, colors[key]));
-};
+  root.dataset.motion = settings?.ambientMotion === 'still' ? 'still' : 'drift';
+  PALETTE_KEYS.forEach((key) => root.style.setProperty(`--${cssVarForPalette(key)}`, colors[key]));
+}
 const updateScrollTone = () => {
   const root = document.documentElement;
   const max = Math.max(1, root.scrollHeight - window.innerHeight);
@@ -532,14 +545,15 @@ function moveSegment(id, side, delta) {
   state.isDemo = false;
   render();
 }
-function moveSegmentTo(id, side, targetId) {
-  if (!id || !targetId || id === targetId) return;
+function moveSegmentTo(id, side, anchorId, placement = 'before') {
   const ids = [...(state.settings.segmentOrder?.[side] || [])];
   const from = ids.indexOf(id);
-  const to = ids.indexOf(targetId);
-  if (from < 0 || to < 0) return;
+  const anchor = ids.indexOf(anchorId);
+  if (from < 0 || anchor < 0 || id === anchorId) return;
   ids.splice(from, 1);
-  ids.splice(to, 0, id);
+  let target = ids.indexOf(anchorId);
+  if (placement === 'after') target += 1;
+  ids.splice(target, 0, id);
   state.settings.segmentOrder[side] = ids;
   state.isDemo = false;
   render();
@@ -721,13 +735,12 @@ function renderBody() {
     const target = segment.target;
     const id = segmentId(target);
     const zero = segment.amount === 0 ? ' · ZERO' : '';
-    return `<article class="mapitem c-${segment.color}" data-reorder-id="${esc(id)}" data-reorder-side="${segment.side}" draggable="true">
+    return `<article class="mapitem c-${segment.color}" data-reorder-id="${esc(id)}" data-reorder-side="${segment.side}" draggable="true" aria-label="Drag to reorder ${esc(segment.name)} within ${segment.side === 'in' ? 'IN' : 'OUT'}; arrows also change priority.">
       <button class="maptune" ${targetAttrs(target)} type="button"><i></i><span><b>${esc(segment.name)}</b><small>${fmt(segment.amount)}${zero} · <em class="side-${segment.side}">${segment.side === 'in' ? 'IN' : 'OUT'}</em></small></span></button>
       <div class="mapactions">
         <button class="visToggle ${shown ? 'on' : ''}" data-visible="${id}" type="button">${shown ? 'ON' : 'OFF'}</button>
         <button class="reorder" data-move="${id}" data-side="${segment.side}" data-dir="-1" aria-label="Move ${esc(segment.name)} earlier" type="button">↑</button>
         <button class="reorder" data-move="${id}" data-side="${segment.side}" data-dir="1" aria-label="Move ${esc(segment.name)} later" type="button">↓</button>
-        <span class="draggrip" aria-hidden="true">≡</span>
       </div>
     </article>`;
   }).join('');
@@ -824,7 +837,7 @@ function renderTerritories() {
     const value = total(type);
     const spec = cardSpec(value);
     return `<button class="territory c-${config[2]} ${spec.wide ? 'wide' : ''}" ${targetAttrs({ k: 'territory', id: type })} type="button">
-      <span class="tk"><span>${config[1]}</span><span>${hasOverride(type) ? 'DIRECT TOTAL' : 'ITEM SUM'}</span></span>
+      <span class="tk"><span>LIQUIDITY TERRITORY</span><span>${hasOverride(type) ? 'DIRECT TOTAL' : 'ITEM SUM'}</span></span>
       <h3>${config[0]}</h3><strong>${fmt(value)}</strong><p>${config[3]}</p>
       ${miniTiles(value, config[2])}
       <small>${amountDescription(value, quantum())} · ${spec.exact ? 'EXACT MAP' : 'TIGHT MAP'} · TUNE ↔</small>
@@ -934,9 +947,15 @@ function close(id = sheet, clear = true) {
   const node = $(`#${id}`);
   node.classList.remove('open');
   node.setAttribute('aria-hidden', 'true');
-  if (clear && id === 'quickSheet') quick = null;
+  if (clear && id === 'quickSheet') { quick = null; quickColorDraft = ''; }
   if (clear && id === 'daySheet') dayKey = null;
   if (clear && id === 'editorSheet') editor = null;
+  if (id === 'settingsSheet') {
+    // Settings previews are intentionally non-destructive until SAVE.
+    closeColorComposer();
+    settingsDraft = null;
+    applyColorway(state.settings);
+  }
   if (sheet === id) sheet = null;
   if (!sheet) {
     $('#backdrop').hidden = true;
@@ -975,7 +994,8 @@ function openQuick(target) {
   $('#quickInput').step = tuneStep();
   $('#quickDetails').textContent = target.k === 'territory' ? 'ADD / DETAILS' : 'DETAILS';
   quickColorKey = info.color;
-  $('#quickColorInput').value = resolvedColor(quickColorKey);
+  quickColorDraft = resolvedColor(quickColorKey);
+  $('#quickColorInput').value = quickColorDraft;
   const shown = isVisible(target);
   $('#quickVisibility').textContent = shown ? 'HIDE FROM CONTINUOUS BODY' : 'SHOW IN CONTINUOUS BODY';
   $('#quickVisibility').classList.toggle('on', shown);
@@ -986,6 +1006,7 @@ function openQuick(target) {
 function applyQuick() {
   if (!quick) return;
   set(quick, $('#quickInput').value);
+  if (quickColorKey && validHex(quickColorDraft) && quickColorDraft !== resolvedColor(quickColorKey)) setCustomColor(quickColorKey, quickColorDraft);
   close('quickSheet');
   render();
 }
@@ -1157,53 +1178,130 @@ function del() {
   render();
 }
 
-function selectedCustomProfile() {
-  return activeCustomProfile();
+function draftProfile() {
+  if (!settingsDraft) settingsDraft = copy(state.settings);
+  return activeCustomProfileFor(settingsDraft);
 }
-function renderPaletteControls(mode = $('#colorwayInput')?.value || state.settings.colorway) {
-  const profile = selectedCustomProfile();
-  const colors = mode === 'custom' ? sanitizeColors(profile.colors, PALETTES.spectrum) : paletteFor(mode);
-  $('#customProfileInput').innerHTML = (state.settings.customProfiles || []).map((entry) => `<option value="${esc(entry.id)}" ${entry.id === state.settings.customProfileId ? 'selected' : ''}>${esc(entry.name)}</option>`).join('');
+function updatePaletteStatus(text = '') {
+  const node = $('#paletteStatus');
+  if (node) node.textContent = text || 'Palette edits remain staged until Save Calibration. Discard or × leaves the saved board exactly as it was.';
+}
+function closeColorComposer() {
+  colorComposerKey = null;
+  colorComposerDraft = '';
+  const node = $('#colorComposer');
+  if (node) node.hidden = true;
+}
+function syncColorComposer(value) {
+  const next = validHex(value);
+  if (!next) return;
+  colorComposerDraft = next;
+  const picker = $('#colorComposeInput');
+  const hex = $('#colorComposeHex');
+  const preview = $('#colorComposePreview');
+  if (picker && picker.value !== next) picker.value = next;
+  if (hex && hex.value.toLowerCase() !== next) hex.value = next;
+  if (preview) preview.style.background = next;
+}
+function openColorComposer(key) {
+  if (!PALETTE_KEYS.includes(key)) return;
+  if (!settingsDraft) settingsDraft = copy(state.settings);
+  if (settingsDraft.colorway !== 'custom') {
+    updatePaletteStatus('Make a custom copy first. Base colorways stay protected until you deliberately create a named profile.');
+    return;
+  }
+  const profile = draftProfile();
+  colorComposerKey = key;
+  colorComposerDraft = sanitizeColors(profile.colors, PALETTES.spectrum)[key];
+  $('#colorComposeName').textContent = PALETTE_LABELS[key];
+  $('#colorComposeInput').value = colorComposerDraft;
+  $('#colorComposeHex').value = colorComposerDraft;
+  $('#colorComposePreview').style.background = colorComposerDraft;
+  $('#colorComposer').hidden = false;
+}
+function stageColorComposer() {
+  if (!colorComposerKey || !validHex(colorComposerDraft)) return;
+  const profile = draftProfile();
+  profile.colors[colorComposerKey] = colorComposerDraft;
+  const labelText = PALETTE_LABELS[colorComposerKey];
+  closeColorComposer();
+  renderPaletteControls('custom');
+  previewDraft();
+  updatePaletteStatus(`${labelText} staged inside this profile. Save Calibration keeps it; Discard or × abandons it.`);
+}
+function renderPaletteControls(mode = $('#colorwayInput')?.value || settingsDraft?.colorway || state.settings.colorway) {
+  if (!settingsDraft) settingsDraft = copy(state.settings);
+  const profile = draftProfile();
+  const customMode = mode === 'custom';
+  const colors = customMode ? sanitizeColors(profile.colors, PALETTES.spectrum) : paletteForSettings(settingsDraft, mode);
+  $('#customProfileInput').innerHTML = (settingsDraft.customProfiles || []).map((entry) => `<option value="${esc(entry.id)}" ${entry.id === settingsDraft.customProfileId ? 'selected' : ''}>${esc(entry.name)}</option>`).join('');
   $('#customProfileNameInput').value = profile.name;
-  $('#paletteGrid').innerHTML = PALETTE_KEYS.map((key) => `<label class="paletteitem"><span><i style="background:${colors[key]}"></i>${PALETTE_LABELS[key]}</span><input type="color" data-palette-key="${key}" value="${colors[key]}" ${mode === 'custom' ? '' : 'disabled'} /></label>`).join('');
-  $('#paletteGrid').classList.toggle('locked', mode !== 'custom');
+  $('#paletteGrid').innerHTML = PALETTE_KEYS.map((key) => `<button class="paletteitem" type="button" data-palette-open="${key}" ${customMode ? '' : 'disabled'} aria-label="${customMode ? `Edit ${PALETTE_LABELS[key]} color` : `${PALETTE_LABELS[key]} is locked until a custom profile is selected`}"><span><i data-swatch="${key}" style="background:${colors[key]}"></i>${PALETTE_LABELS[key]}</span><b style="color:${colors[key]}">${colors[key].toUpperCase()}</b></button>`).join('');
+  $('#paletteGrid').classList.toggle('locked', !customMode);
+  $('#customProfileInput').disabled = !customMode;
+  $('#customProfileNameInput').disabled = !customMode;
+  $('#paletteResetBtn').disabled = !customMode;
+  if (!customMode) closeColorComposer();
+  updatePaletteStatus(customMode ? '' : 'Choose Custom profile or MAKE CUSTOM COPY to unlock individual colors. Nothing is committed until Save Calibration.');
 }
-function createCustomProfile(baseMode = $('#colorwayInput')?.value || state.settings.colorway) {
-  const basis = baseMode === 'custom' ? paletteFor('custom') : paletteFor(baseMode);
-  const count = (state.settings.customProfiles || []).length + 1;
+function previewDraft() { if (settingsDraft) applyColorway(settingsDraft); }
+function createCustomProfile(baseMode = $('#colorwayInput')?.value || settingsDraft?.colorway || state.settings.colorway) {
+  if (!settingsDraft) settingsDraft = copy(state.settings);
+  const basis = paletteForSettings(settingsDraft, baseMode);
+  const count = (settingsDraft.customProfiles || []).length + 1;
   const profile = { id: uid('palette'), name: `Custom flow ${count}`, colors: { ...basis } };
-  state.settings.customProfiles.push(profile);
-  state.settings.customProfileId = profile.id;
-  state.settings.colorway = 'custom';
+  settingsDraft.customProfiles.push(profile);
+  settingsDraft.customProfileId = profile.id;
+  settingsDraft.colorway = 'custom';
   $('#colorwayInput').value = 'custom';
   renderPaletteControls('custom');
+  previewDraft();
+  updatePaletteStatus('New custom profile is staged. Tune it, then Save Calibration to add it to your palette list.');
 }
+function resetDraftProfile() {
+  if (!settingsDraft || settingsDraft.colorway !== 'custom') return;
+  const profile = draftProfile();
+  profile.colors = { ...PALETTES.spectrum };
+  closeColorComposer();
+  renderPaletteControls('custom');
+  previewDraft();
+  updatePaletteStatus('This draft profile was reset to Flow Spectrum. Save Calibration keeps the reset; Discard abandons it.');
+}
+
 function settings() {
-  $('#taskPayoutInput').value = state.settings.taskPayout;
-  $('#cellQuantumInput').value = quantum();
-  $('#horizonInput').value = state.settings.forecastDays;
-  $('#cycleDeadlineInput').value = safeCycleISO(state.settings.cycleDeadline);
-  $('#bodyModeInput').value = state.settings.bodyMode;
-  $('#tailModeInput').value = state.settings.tailMode;
-  $('#cardModeInput').value = state.settings.cardMode;
-  $('#colorwayInput').value = state.settings.colorway || 'spectrum';
-  renderPaletteControls(state.settings.colorway);
+  closeColorComposer();
+  settingsDraft = copy(state.settings);
+  $('#taskPayoutInput').value = settingsDraft.taskPayout;
+  $('#cellQuantumInput').value = settingsDraft.cellQuantum;
+  $('#horizonInput').value = settingsDraft.forecastDays;
+  $('#cycleDeadlineInput').value = safeCycleISO(settingsDraft.cycleDeadline);
+  $('#bodyModeInput').value = settingsDraft.bodyMode;
+  $('#tailModeInput').value = settingsDraft.tailMode;
+  $('#cardModeInput').value = settingsDraft.cardMode;
+  $('#ambientMotionInput').value = settingsDraft.ambientMotion || 'drift';
+  $('#colorwayInput').value = settingsDraft.colorway || 'spectrum';
+  renderPaletteControls(settingsDraft.colorway);
   open('settingsSheet');
 }
 
 function saveSettings(event) {
   event.preventDefault();
-  state.settings.taskPayout = nn($('#taskPayoutInput').value);
-  state.settings.cellQuantum = Number($('#cellQuantumInput').value) === 100 ? 100 : 25;
-  state.settings.forecastDays = clamp(Math.round(n($('#horizonInput').value, 28) / 7) * 7, 14, 84);
-  state.settings.cycleDeadline = safeCycleISO($('#cycleDeadlineInput').value);
-  state.settings.bodyMode = ['ledger', 'flow', 'exploded'].includes($('#bodyModeInput').value) ? $('#bodyModeInput').value : 'ledger';
-  state.settings.tailMode = $('#tailModeInput').value === 'inline' ? 'inline' : 'stacked';
-  state.settings.cardMode = $('#cardModeInput').value === 'compact' ? 'compact' : 'exact';
-  state.settings.colorway = ['spectrum', 'midnight', 'marker', 'custom'].includes($('#colorwayInput').value) ? $('#colorwayInput').value : 'spectrum';
-  const profile = selectedCustomProfile();
+  if (!settingsDraft) settingsDraft = copy(state.settings);
+  settingsDraft.taskPayout = nn($('#taskPayoutInput').value);
+  settingsDraft.cellQuantum = Number($('#cellQuantumInput').value) === 100 ? 100 : 25;
+  settingsDraft.forecastDays = clamp(Math.round(n($('#horizonInput').value, 28) / 7) * 7, 14, 84);
+  settingsDraft.cycleDeadline = safeCycleISO($('#cycleDeadlineInput').value);
+  settingsDraft.bodyMode = ['ledger', 'flow', 'exploded'].includes($('#bodyModeInput').value) ? $('#bodyModeInput').value : 'ledger';
+  settingsDraft.tailMode = $('#tailModeInput').value === 'inline' ? 'inline' : 'stacked';
+  settingsDraft.cardMode = $('#cardModeInput').value === 'compact' ? 'compact' : 'exact';
+  settingsDraft.ambientMotion = $('#ambientMotionInput').value === 'still' ? 'still' : 'drift';
+  settingsDraft.colorway = ['spectrum', 'midnight', 'marker', 'custom'].includes($('#colorwayInput').value) ? $('#colorwayInput').value : 'spectrum';
+  const profile = draftProfile();
   profile.name = ($('#customProfileNameInput').value || 'Custom flow').trim().slice(0, 40);
+  closeColorComposer();
+  state.settings = settingsDraft;
   state.isDemo = false;
+  settingsDraft = null;
   close('settingsSheet');
   render();
 }
@@ -1321,7 +1419,7 @@ function init() {
   });
 
   $('#quickInput').oninput = (event) => syncQuick(event.target.value);
-  $('#quickColorInput').oninput = (event) => { if (quickColorKey) { setCustomColor(quickColorKey, event.target.value); } };
+  $('#quickColorInput').oninput = (event) => { quickColorDraft = validHex(event.target.value) || quickColorDraft; };
   $('#quickMinus').onclick = () => syncQuick(qDraft - tuneStep());
   $('#quickPlus').onclick = () => syncQuick(qDraft + tuneStep());
   $('#quickApply').onclick = applyQuick;
@@ -1340,11 +1438,35 @@ function init() {
 
   $('#editorForm').onsubmit = saveEdit;
   $('#deleteBtn').onclick = del;
-  $('#colorwayInput').onchange = (event) => renderPaletteControls(event.target.value);
-  $('#customProfileInput').onchange = (event) => { state.settings.customProfileId = event.target.value; renderPaletteControls($('#colorwayInput').value); };
-  $('#customProfileNameInput').oninput = (event) => { selectedCustomProfile().name = event.target.value.slice(0, 40); $('#customProfileInput').innerHTML = (state.settings.customProfiles || []).map((entry) => `<option value="${esc(entry.id)}" ${entry.id === state.settings.customProfileId ? 'selected' : ''}>${esc(entry.name || 'Custom flow')}</option>`).join(''); };
+  $('#colorwayInput').onchange = (event) => {
+    if (!settingsDraft) settingsDraft = copy(state.settings);
+    settingsDraft.colorway = event.target.value;
+    renderPaletteControls(event.target.value);
+    previewDraft();
+  };
+  $('#customProfileInput').onchange = (event) => {
+    if (!settingsDraft) settingsDraft = copy(state.settings);
+    settingsDraft.customProfileId = event.target.value;
+    renderPaletteControls('custom');
+    previewDraft();
+  };
+  $('#customProfileNameInput').oninput = (event) => {
+    const profile = draftProfile();
+    profile.name = event.target.value.slice(0, 40);
+    const selected = $('#customProfileInput').selectedOptions?.[0];
+    if (selected) selected.textContent = profile.name || 'Custom flow';
+  };
   $('#paletteNewBtn').onclick = () => createCustomProfile($('#colorwayInput').value);
-  $('#paletteGrid').oninput = (event) => { const key = event.target?.dataset?.paletteKey; if (key) { setCustomColor(key, event.target.value); $('#colorwayInput').value = 'custom'; renderPaletteControls('custom'); } };
+  $('#paletteResetBtn').onclick = resetDraftProfile;
+  $('#paletteGrid').onclick = (event) => {
+    const chip = event.target.closest?.('[data-palette-open]');
+    if (chip) openColorComposer(chip.dataset.paletteOpen);
+  };
+  $('#colorComposeInput').oninput = (event) => syncColorComposer(event.target.value);
+  $('#colorComposeHex').oninput = (event) => syncColorComposer(event.target.value.trim());
+  $('#colorComposeStage').onclick = stageColorComposer;
+  $('#colorComposeDiscard').onclick = closeColorComposer;
+  $('#colorComposeClose').onclick = closeColorComposer;
   $('#settingsForm').onsubmit = saveSettings;
   $('#backdrop').onclick = () => close();
   $('#quickDial').onpointerdown = (event) => begin(event, 'q');
@@ -1352,14 +1474,50 @@ function init() {
   window.addEventListener('pointermove', move, { passive: false });
   window.addEventListener('pointerup', end);
   window.addEventListener('pointercancel', end);
+
+  // Desktop drag-and-drop keeps the portable arrows too. No persistent grip bars:
+  // drag the layer itself and the potential insertion boundary lights up.
+  document.addEventListener('dragstart', (event) => {
+    const node = event.target.closest?.('[data-reorder-id]');
+    if (!node || event.target.closest?.('.mapactions button')) return;
+    draggedLayer = { id: node.dataset.reorderId, side: node.dataset.reorderSide };
+    node.classList.add('dragging');
+    event.dataTransfer?.setData('text/plain', draggedLayer.id);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  });
+  document.addEventListener('dragend', () => {
+    $$('.mapitem.dragging,.mapitem.drop-before,.mapitem.drop-after').forEach((node) => node.classList.remove('dragging', 'drop-before', 'drop-after'));
+    draggedLayer = null;
+  });
+  document.addEventListener('dragover', (event) => {
+    const node = event.target.closest?.('[data-reorder-id]');
+    if (!node || !draggedLayer || node.dataset.reorderSide !== draggedLayer.side || node.dataset.reorderId === draggedLayer.id) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    const bounds = node.getBoundingClientRect();
+    const placement = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+    $$('.mapitem.drop-before,.mapitem.drop-after').forEach((item) => item.classList.remove('drop-before', 'drop-after'));
+    node.classList.add(placement === 'before' ? 'drop-before' : 'drop-after');
+  });
+  document.addEventListener('dragleave', (event) => {
+    const node = event.target.closest?.('[data-reorder-id]');
+    if (!node || node.contains(event.relatedTarget)) return;
+    node.classList.remove('drop-before', 'drop-after');
+  });
+  document.addEventListener('drop', (event) => {
+    const node = event.target.closest?.('[data-reorder-id]');
+    if (!node || !draggedLayer || node.dataset.reorderSide !== draggedLayer.side || node.dataset.reorderId === draggedLayer.id) return;
+    event.preventDefault();
+    const placement = node.classList.contains('drop-after') ? 'after' : 'before';
+    const source = draggedLayer;
+    $$('.mapitem.drop-before,.mapitem.drop-after').forEach((item) => item.classList.remove('drop-before', 'drop-after'));
+    draggedLayer = null;
+    moveSegmentTo(source.id, source.side, node.dataset.reorderId, placement);
+  });
+
   window.addEventListener('resize', () => { scheduleLedgerSizing(); updateScrollTone(); });
   window.addEventListener('scroll', () => window.requestAnimationFrame(updateScrollTone), { passive: true });
   document.addEventListener('click', click);
-  document.addEventListener('dragstart', (event) => { const node = event.target.closest?.('[data-reorder-id]'); if (!node) return; draggedLayer = { id: node.dataset.reorderId, side: node.dataset.reorderSide }; node.classList.add('dragging'); event.dataTransfer?.setData('text/plain', draggedLayer.id); });
-  document.addEventListener('dragend', (event) => { event.target.closest?.('[data-reorder-id]')?.classList.remove('dragging'); draggedLayer = null; });
-  document.addEventListener('dragover', (event) => { const node = event.target.closest?.('[data-reorder-id]'); if (node && draggedLayer && node.dataset.reorderSide === draggedLayer.side) { event.preventDefault(); node.classList.add('dropready'); } });
-  document.addEventListener('dragleave', (event) => event.target.closest?.('[data-reorder-id]')?.classList.remove('dropready'));
-  document.addEventListener('drop', (event) => { const node = event.target.closest?.('[data-reorder-id]'); if (node && draggedLayer && node.dataset.reorderSide === draggedLayer.side) { event.preventDefault(); moveSegmentTo(draggedLayer.id, draggedLayer.side, node.dataset.reorderId); } });
   document.addEventListener('keydown', keys);
   document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
 

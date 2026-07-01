@@ -1,6 +1,6 @@
-const CACHE = 'chunk-solvency-v0.9';
+const CACHE = 'chunk-solvency-v1.0.1';
 const ASSETS = [
-  './', './index.html', './styles.css?v=0.9', './app.js?v=0.9', './manifest.json',
+  './', './index.html', './styles.css?v=1.0.1', './app.js?v=1.0.1', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'
 ];
 self.addEventListener('install', (event) => {
