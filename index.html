@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Chunk" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css?v=0.4.1" />
-  <title>CHUNK // SOLVENCY v0.4.1</title>
+  <link rel="stylesheet" href="styles.css?v=0.5.0" />
+  <title>CHUNK // SOLVENCY v0.5</title>
 </head>
 <body>
   <div class="grain"></div>
@@ -22,91 +22,193 @@
         <p>economic matter moving through time and pressure</p>
       </div>
       <div class="tools">
-        <button id="exportBtn">EXPORT</button><button id="importBtn">IMPORT</button><input id="importInput" type="file" accept=".json,application/json" hidden /><button id="settingsBtn" class="accent">SETTINGS</button>
+        <button id="exportBtn" type="button">EXPORT</button>
+        <button id="importBtn" type="button">IMPORT</button>
+        <input id="importInput" type="file" accept=".json,application/json" hidden />
+        <button id="settingsBtn" class="accent" type="button">SETTINGS</button>
       </div>
     </header>
 
-    <section class="demo" id="demoBanner" hidden><span><b>DEMO TERRAIN LOADED.</b> The numbers are fake. The logic is real.</span><button id="cleanBtn">START CLEAN</button></section>
-
-    <section class="status">
-      <div class="pressure"><span class="micro">NEXT PRESSURE POINT</span><strong id="countdown">—</strong><small id="countdownLabel">Mapping terrain</small></div>
-      <div class="verdict"><span class="micro">CURRENT VERDICT</span><p id="verdict">Loading board.</p></div>
-      <button class="task" id="taskBtn"><span class="micro">ONE COMPLETE TASK</span><strong id="taskValue">—</strong><small id="taskCopy">Calibrate in settings</small></button>
+    <section class="demo" id="demoBanner" hidden>
+      <span><b>DEMO TERRAIN LOADED.</b> The numbers are fake. The logic is real.</span>
+      <button id="cleanBtn" type="button">START CLEAN</button>
     </section>
 
-    <nav><a href="#body">FLOW</a><a href="#time">TIME</a><a href="#liquidity">LIQUIDITY</a><a href="#wall">WALL</a><a href="#dragons">DRAGONS</a><a href="#life">LIFE</a></nav>
+    <section class="status">
+      <div class="pressure">
+        <span class="micro">NEXT PRESSURE POINT</span>
+        <strong id="countdown">—</strong>
+        <small id="countdownLabel">Mapping terrain</small>
+      </div>
+      <div class="verdict">
+        <span class="micro">CURRENT VERDICT</span>
+        <p id="verdict">Loading board.</p>
+      </div>
+      <button class="task" id="taskBtn" type="button">
+        <span class="micro">ONE COMPLETE TASK</span>
+        <strong id="taskValue">—</strong>
+        <small id="taskCopy">Calibrate in settings</small>
+      </button>
+    </section>
+
+    <nav aria-label="Board sections">
+      <a href="#body">FLOW</a><a href="#time">TIME</a><a href="#liquidity">LIQUIDITY</a><a href="#wall">WALL</a><a href="#dragons">DRAGONS</a><a href="#life">LIFE</a>
+    </nav>
 
     <section id="body" class="section">
-      <header class="sectionhead"><div><span class="index">00</span><h2>THE CONTINUOUS BODY</h2><p>Every square is actual financial matter. There are no decorative voids. Each small square is one quarter of a major tile.</p></div><aside><span>QUANTUM</span><strong id="quantum">—</strong></aside></header>
-      <p class="instruction"><i></i><b>TAP ANY COLOR</b> to tune it. The body fills continuously: hard assets → pipeline → true cash → buffer → investments → obligations → minimums → dragon mass.</p>
-      <div id="flowMap" class="flowmap"></div>
-      <div class="bodyframe"><div id="bodyGrid" class="bodygrid"></div></div>
-      <p class="caption">Exact values remain printed on each territory. The body itself rounds only to the visible $25 quantum so that it can be touched, counted, and re-shaped.</p>
+      <header class="sectionhead">
+        <div>
+          <span class="index">00</span>
+          <h2>THE CONTINUOUS BODY</h2>
+          <p>One exact visual organism. The default flow has no voids; an exploded switch lets every territory stand in its own clean rectangle.</p>
+        </div>
+        <aside><span>RESOLUTION</span><strong id="quantum">—</strong></aside>
+      </header>
+
+      <p class="instruction"><i></i><b>TAP ANY COLOR</b> to tune it. Full cells are exact quantum units; the final tail cell is filled to its literal percentage instead of being rounded into a lie.</p>
+
+      <section class="flowcontrols" aria-label="Continuous body controls">
+        <div class="resolutioncontrol">
+          <span class="micro">CELL QUANTUM</span>
+          <div class="segmented" role="group" aria-label="Cell quantum">
+            <button type="button" data-quantum="25">$25 / CELL</button>
+            <button type="button" data-quantum="100">$100 / CELL</button>
+          </div>
+        </div>
+        <div class="viewcontrol">
+          <span class="micro">BODY VIEW</span>
+          <div class="segmented" role="group" aria-label="Body view">
+            <button type="button" data-bodymode="flow">CONTINUOUS</button>
+            <button type="button" data-bodymode="exploded">EXPLODED</button>
+          </div>
+        </div>
+        <div class="addcontrol">
+          <label>
+            <span class="micro">PLACE A TYPE</span>
+            <select id="bodyAddType" aria-label="Type to place on board">
+              <option value="asset">MONEY OBJECT</option>
+              <option value="expense">OBLIGATION</option>
+              <option value="debt">DEBT DRAGON</option>
+              <option value="desire">LIFE TRACK</option>
+            </select>
+          </label>
+          <button id="bodyAddBtn" type="button">+ PLACE</button>
+        </div>
+      </section>
+
+      <div id="flowMap" class="flowmap" aria-label="Continuous body tuning key"></div>
+      <div id="bodyFrame" class="bodyframe"><div id="bodyGrid" class="bodygrid"></div></div>
+      <p id="bodyCaption" class="caption">The Body is canonical: every value is represented. The cards below are compact dossiers, not a replacement for the real mass.</p>
     </section>
 
     <section id="time" class="section">
-      <header class="sectionhead"><div><span class="index">01</span><h2>TIME CORRIDOR</h2><p>Seven days across, no horizontal ribbon. Tap any day to set an earnings goal or place an incoming / outgoing event directly into that date.</p></div><aside><span>ACTIVE CASH</span><strong id="cashReadout">—</strong></aside></header>
-      <div class="timeframe"><div class="timemeta"><span id="timeStart">Today</span><span id="timeEnd">Horizon</span></div><div class="weeklabels"><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span><span>06</span><span>07</span></div><div id="timeGrid" class="timegrid"></div></div>
+      <header class="sectionhead">
+        <div>
+          <span class="index">01</span>
+          <h2>TIME CORRIDOR</h2>
+          <p>Seven days across, weeks stacked vertically. Tap any day to set an earnings goal, route a pipeline landing, or create an obligation due on that exact square.</p>
+        </div>
+        <aside><span>ACTIVE CASH</span><strong id="cashReadout">—</strong></aside>
+      </header>
+      <div class="timeframe">
+        <div class="timemeta"><span id="timeStart">Today</span><span id="timeEnd">Horizon</span></div>
+        <div class="weeklabels"><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span><span>06</span><span>07</span></div>
+        <div id="timeGrid" class="timegrid"></div>
+      </div>
       <p class="key"><i class="goal"></i>earn goal <i class="income"></i>incoming <i class="bill"></i>obligation <i class="debt"></i>debt bite</p>
     </section>
 
     <section id="liquidity" class="section">
-      <header class="sectionhead"><div><span class="index">02</span><h2>LIQUIDITY TERRITORIES</h2><p>Five materially different kinds of money. Tap a card to directly tune the territory total; details exist for naming the pieces inside it.</p></div><button class="add" data-add="asset">+ PLACE MONEY</button></header>
+      <header class="sectionhead">
+        <div>
+          <span class="index">02</span><h2>LIQUIDITY TERRITORIES</h2>
+          <p>Five materially different kinds of money. These cards keep compact quarter-tile evidence; tap one to tune its real total.</p>
+        </div>
+        <button class="add" data-add="asset" type="button">+ PLACE MONEY</button>
+      </header>
       <div id="territories" class="territories"></div>
     </section>
 
     <section id="wall" class="section">
-      <header class="sectionhead"><div><span class="index">03</span><h2>MONTHLY WALL</h2><p>These records populate the time corridor automatically at their due dates.</p></div><aside class="warm"><span>MONTHLY BURN</span><strong id="monthlyReadout">—</strong></aside></header>
-      <div id="expenses" class="records"></div><button class="add warmbutton" data-add="expense">+ ADD OBLIGATION</button>
+      <header class="sectionhead">
+        <div><span class="index">03</span><h2>MONTHLY WALL</h2><p>These records populate the Time Corridor automatically at their due dates. Tap a card to directly alter its pressure.</p></div>
+        <aside class="warm"><span>MONTHLY BURN</span><strong id="monthlyReadout">—</strong></aside>
+      </header>
+      <div id="expenses" class="records"></div>
+      <button class="add warmbutton" data-add="expense" type="button">+ ADD OBLIGATION</button>
     </section>
 
     <section id="dragons" class="section">
-      <header class="sectionhead"><div><span class="index">04</span><h2>DEBT DRAGONS</h2><p>Balance is body mass. Minimum payment is the monthly bite. Both can move in either direction.</p></div><aside class="red"><span>TOTAL MASS</span><strong id="debtReadout">—</strong></aside></header>
-      <div id="debts" class="records"></div><button class="add redbutton" data-add="debt">+ RELEASE A DRAGON</button>
+      <header class="sectionhead">
+        <div><span class="index">04</span><h2>DEBT DRAGONS</h2><p>Balance is visible body mass. Minimum payment is the recurring bite. Both directions remain editable because debt can gain weight too.</p></div>
+        <aside class="red"><span>TOTAL MASS</span><strong id="debtReadout">—</strong></aside>
+      </header>
+      <div id="debts" class="records"></div>
+      <button class="add redbutton" data-add="debt" type="button">+ RELEASE A DRAGON</button>
     </section>
 
     <section id="life" class="section">
-      <header class="sectionhead"><div><span class="index">05</span><h2>SANCTIONED LIFE</h2><p>Books, tools, toys, art, mystery. A bounded address for desire means it does not have to masquerade as sabotage.</p></div><button class="add purplebutton" data-add="desire">+ CREATE TRACK</button></header>
+      <header class="sectionhead">
+        <div><span class="index">05</span><h2>SANCTIONED LIFE</h2><p>Books, tools, toys, art, mystery. Each target is rendered as hollow quarter-cells that fill as the reserve becomes real.</p></div>
+        <button class="add purplebutton" data-add="desire" type="button">+ CREATE TRACK</button>
+      </header>
       <div id="desires" class="records"></div>
     </section>
 
-    <section class="protocol"><div><span class="micro">THE BOARD’S ONLY CLAIM</span><h2>It does not tell you who to become.</h2><p>It makes the terrain easier to see and therefore easier to reconfigure.</p></div><div class="tools"><button id="loadDemoBtn">LOAD DEMO</button><button id="resetBtn" class="danger">ERASE BOARD</button></div></section>
+    <section class="protocol">
+      <div><span class="micro">THE BOARD’S ONLY CLAIM</span><h2>It does not tell you who to become.</h2><p>It makes the terrain easier to see and therefore easier to reconfigure.</p></div>
+      <div class="tools"><button id="loadDemoBtn" type="button">LOAD DEMO</button><button id="resetBtn" class="danger" type="button">ERASE BOARD</button></div>
+    </section>
     <footer><span>STATE SAVES ONLY IN THIS BROWSER</span><i></i><span id="saved">LOCAL MEMORY READY</span></footer>
   </main>
 
   <div id="backdrop" class="backdrop" hidden></div>
 
-  <aside id="quickSheet" class="sheet" aria-hidden="true">
-    <header><div><span id="quickKicker" class="micro">DIRECT TUNE</span><h2 id="quickTitle">Adjust matter</h2></div><button class="close" data-close="quickSheet">×</button></header>
-    <p id="quickDesc" class="sheetdesc"></p>
-    <div class="valuebar"><span id="quickExactLabel">EXACT VALUE</span><strong id="quickReadout">—</strong></div>
-    <label class="numberfield"><span>TYPE A VALUE</span><input id="quickInput" type="number" min="0" step="1" inputmode="decimal" /></label>
-    <div class="dialrow"><button id="quickMinus">− <span id="quickQuarterMinus">$25</span></button><div id="quickDial" class="dial" tabindex="0"><span>←</span><b id="quickDialValue">DRAG</b><span>→</span><small>SLIDE LEFT / RIGHT · QUARTER STEPS</small></div><button id="quickPlus">+ <span id="quickQuarterPlus">$25</span></button></div>
-    <div id="quickPreview" class="preview"></div>
-    <footer><button id="quickDetails">DETAILS</button><i></i><button id="quickApply" class="primary">APPLY TO BOARD</button></footer>
+  <aside id="quickSheet" class="sheet quicksheet" aria-hidden="true">
+    <header><div><span id="quickKicker" class="micro">DIRECT TUNE</span><h2 id="quickTitle">Adjust matter</h2></div><button class="close" data-close="quickSheet" type="button">×</button></header>
+    <div class="sheetbody">
+      <p id="quickDesc" class="sheetdesc"></p>
+      <div class="valuebar"><span id="quickExactLabel">EXACT VALUE</span><strong id="quickReadout">—</strong></div>
+      <label class="numberfield"><span>TYPE A VALUE</span><input id="quickInput" type="number" min="0" step="1" inputmode="decimal" /></label>
+      <div class="dialrow"><button id="quickMinus" type="button">− <span id="quickStepMinus">$25</span></button><div id="quickDial" class="dial" tabindex="0"><span>←</span><b id="quickDialValue">DRAG</b><span>→</span><small>SLIDE LEFT / RIGHT · $25 TUNE STEPS</small></div><button id="quickPlus" type="button">+ <span id="quickStepPlus">$25</span></button></div>
+      <div id="quickPreview" class="preview"></div>
+      <button id="quickVisibility" class="visibilitywide" type="button">HIDE FROM CONTINUOUS BODY</button>
+    </div>
+    <footer><button id="quickDetails" type="button">DETAILS</button><i></i><button id="quickApply" class="primary" type="button">APPLY TO BOARD</button></footer>
   </aside>
 
   <aside id="daySheet" class="sheet" aria-hidden="true">
-    <header><div><span class="micro">DAY PLANNER</span><h2 id="dayTitle">Day</h2></div><button class="close" data-close="daySheet">×</button></header>
-    <p class="sheetdesc">Set a non-binding earnings goal here, then route a pipeline landing or one-off obligation directly onto this square.</p>
-    <div class="valuebar"><span>EARNING GOAL</span><strong id="dayReadout">NO GOAL</strong></div>
-    <label class="numberfield"><span>GOAL AMOUNT</span><input id="dayInput" type="number" min="0" step="1" inputmode="decimal" /></label>
-    <div class="dialrow"><button id="dayMinus">− <span id="dayQuarterMinus">$25</span></button><div id="dayDial" class="dial" tabindex="0"><span>←</span><b id="dayDialValue">DRAG</b><span>→</span><small>GOAL QUARTER STEPS</small></div><button id="dayPlus">+ <span id="dayQuarterPlus">$25</span></button></div>
-    <div class="daytitle"><span>SCHEDULED ON THIS DAY</span><button id="clearGoal">CLEAR GOAL</button></div><div id="dayEvents" class="dayevents"></div>
-    <div class="dayadd"><button id="addIncomeDay">+ PIPELINE LANDING</button><button id="addExpenseDay">+ OBLIGATION DUE</button></div>
-    <footer><span></span><i></i><button id="saveDay" class="primary">SAVE DAY PLAN</button></footer>
+    <header><div><span class="micro">DAY PLANNER</span><h2 id="dayTitle">Day</h2></div><button class="close" data-close="daySheet" type="button">×</button></header>
+    <div class="sheetbody">
+      <p class="sheetdesc">Set a non-binding earnings goal, then route a pipeline landing or one-off obligation directly onto this square.</p>
+      <div class="valuebar"><span>EARNING GOAL</span><strong id="dayReadout">NO GOAL</strong></div>
+      <label class="numberfield"><span>GOAL AMOUNT</span><input id="dayInput" type="number" min="0" step="1" inputmode="decimal" /></label>
+      <div class="dialrow"><button id="dayMinus" type="button">− <span id="dayStepMinus">$25</span></button><div id="dayDial" class="dial" tabindex="0"><span>←</span><b id="dayDialValue">DRAG</b><span>→</span><small>GOAL QUARTER STEPS</small></div><button id="dayPlus" type="button">+ <span id="dayStepPlus">$25</span></button></div>
+      <div class="daytitle"><span>SCHEDULED ON THIS DAY</span><button id="clearGoal" type="button">CLEAR GOAL</button></div><div id="dayEvents" class="dayevents"></div>
+      <div class="dayadd"><button id="addIncomeDay" type="button">+ PIPELINE LANDING</button><button id="addExpenseDay" type="button">+ OBLIGATION DUE</button></div>
+    </div>
+    <footer><span></span><i></i><button id="saveDay" class="primary" type="button">SAVE DAY PLAN</button></footer>
   </aside>
 
   <aside id="editorSheet" class="sheet editor" aria-hidden="true">
-    <header><div><span id="editorKicker" class="micro">NEW RECORD</span><h2 id="editorTitle">Place on board</h2></div><button class="close" data-close="editorSheet">×</button></header>
+    <header><div><span id="editorKicker" class="micro">NEW RECORD</span><h2 id="editorTitle">Place on board</h2></div><button class="close" data-close="editorSheet" type="button">×</button></header>
     <form id="editorForm"><div id="editorFields" class="fields"></div><footer><button id="deleteBtn" class="danger" type="button" hidden>DELETE</button><i></i><button class="primary" type="submit">PUT ON BOARD</button></footer></form>
   </aside>
 
   <aside id="settingsSheet" class="sheet editor" aria-hidden="true">
-    <header><div><span class="micro">CALIBRATE</span><h2>Board settings</h2></div><button class="close" data-close="settingsSheet">×</button></header>
-    <form id="settingsForm"><div class="fields"><label class="full"><span>Typical payout for one complete DA task</span><input id="taskPayoutInput" type="number" min="0" step="1" inputmode="decimal" /></label><label><span>Major tile denomination</span><input id="tileInput" type="number" min="100" max="2000" step="100" inputmode="numeric" /></label><label><span>Time horizon (days)</span><input id="horizonInput" type="number" min="14" max="84" step="7" inputmode="numeric" /></label><p class="full">Every major tile divides into four visible quarter-cells. Keep $100 unless the physical body gets genuinely too huge.</p></div><footer><span></span><i></i><button class="primary" type="submit">SAVE CALIBRATION</button></footer></form>
+    <header><div><span class="micro">CALIBRATE</span><h2>Board settings</h2></div><button class="close" data-close="settingsSheet" type="button">×</button></header>
+    <form id="settingsForm">
+      <div class="fields">
+        <label class="full"><span>Typical payout for one complete DA task</span><input id="taskPayoutInput" type="number" min="0" step="1" inputmode="decimal" /></label>
+        <label><span>Body cell quantum</span><select id="cellQuantumInput"><option value="25">$25 per exact cell</option><option value="100">$100 per exact cell</option></select></label>
+        <label><span>Time horizon (days)</span><input id="horizonInput" type="number" min="14" max="84" step="7" inputmode="numeric" /></label>
+        <label class="full"><span>Default body view</span><select id="bodyModeInput"><option value="flow">Continuous / gapless</option><option value="exploded">Exploded territories</option></select></label>
+        <p class="full">The Body uses exact full cells plus one literal partial tail. Direct tuning remains in $25 steps for tactile control, regardless of display resolution.</p>
+      </div>
+      <footer><span></span><i></i><button class="primary" type="submit">SAVE CALIBRATION</button></footer>
+    </form>
   </aside>
 
-  <script src="app.js?v=0.4.1"></script>
+  <script src="app.js?v=0.5.0"></script>
 </body>
 </html>

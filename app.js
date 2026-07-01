@@ -1,64 +1,931 @@
-const VERSION=4,KEY='chunk-solvency-v4',OLD=['chunk-solvency-v3','chunk-solvency-v2','chunk-solvency-v1'];
-const A={hardAsset:['Hard assets','HARD ASSET','hard','Sellable possessions. Least liquid.'],pipeline:['Pipeline','PIPELINE','pipeline','Expected money. Not active cash until it lands.'],cash:['True cash','TRUE CASH','cash','Immediately accessible money.'],buffer:['Protected buffer','PROTECTED BUFFER','buffer','Money deliberately separated from active panic.'],investment:['Investments','INVESTMENTS','invest','Conditional liquidity with a future cost.']};
-const ORDER=['hardAsset','pipeline','cash','buffer','investment']; const E={essential:['FIXED / ESSENTIAL','ess'],flexible:['VARIABLE / FLEXIBLE','flex'],oneoff:['ONE-OFF','one']};
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-// State must load only after the helper consts below exist. Loading here used to call demo() before uid/n/nn/clamp had initialized.
-let state,quick=null,qDraft=0,dayKey=null,dayDraft=0,editor=null,sheet=null,drag=null;
-const n=(x,d=0)=>Number.isFinite(Number(x))?Number(x):d, nn=x=>Math.max(0,n(x)), clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const uid=p=>`${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
-const esc=x=>String(x??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-const fmt=x=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(nn(x));
-const today=()=>{let d=new Date;return new Date(d.getFullYear(),d.getMonth(),d.getDate(),12)}; const add=(d,x)=>{let r=new Date(d);r.setDate(r.getDate()+x);return r};
-const iso=d=>{d=d instanceof Date?d:new Date(`${d}T12:00:00`);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
-const parse=x=>/^\d{4}-\d{2}-\d{2}$/.test(x||'')?new Date(`${x}T12:00:00`):null;
-const label=d=>new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(d), wk=d=>new Intl.DateTimeFormat('en-US',{weekday:'short'}).format(d).toUpperCase();
-const tile=()=>Math.max(100,Math.round(n(state.settings.chunkSize,100)/100)*100), quarter=()=>tile()/4, cells=x=>Math.max(0,Math.round(nn(x)/quarter())), chunks=x=>{let z=cells(x)/4;return `${Number.isInteger(z)?z:z.toFixed(2).replace(/0+$/,'').replace(/\.$/,'')} chunk${z===1?'':'s'}`};
-function blank(){return{version:VERSION,isDemo:false,settings:{taskPayout:0,chunkSize:100,forecastDays:28},territoryTotals:{},calendarGoals:{},assets:[],expenses:[],debts:[],desires:[]}}
-function demo(){let d=today();return{version:VERSION,isDemo:true,settings:{taskPayout:66,chunkSize:100,forecastDays:28},territoryTotals:{},calendarGoals:{},assets:[{id:uid('a'),name:'Checking / active cash',type:'cash',amount:420,expectedDate:'',confidence:100,notes:''},{id:uid('a'),name:'Protected buffer',type:'buffer',amount:250,expectedDate:'',confidence:100,notes:''},{id:uid('a'),name:'Likely DA payout',type:'pipeline',amount:66,expectedDate:iso(add(d,2)),confidence:90,notes:''},{id:uid('a'),name:'Portfolio / conditional',type:'investment',amount:950,expectedDate:'',confidence:100,notes:''},{id:uid('a'),name:'Sellable misc.',type:'hardAsset',amount:130,expectedDate:'',confidence:100,notes:''}],expenses:[{id:uid('e'),name:'Rent',amount:925,cadence:'monthly',type:'essential',dueDay:add(d,9).getDate(),dueDate:'',notes:''},{id:uid('e'),name:'Insurance',amount:86,cadence:'monthly',type:'essential',dueDay:add(d,4).getDate(),dueDate:'',notes:''},{id:uid('e'),name:'Food + fuel reserve',amount:280,cadence:'monthly',type:'flexible',dueDay:add(d,14).getDate(),dueDate:'',notes:''}],debts:[{id:uid('d'),name:'Credit card',balance:9200,minPayment:263,dueDay:add(d,18).getDate(),apr:18.99,notes:''}],desires:[{id:uid('l'),name:'Hollow Press books',target:100,saved:0,notes:'Bounded book hunger.'},{id:uid('l'),name:'Tools',target:200,saved:0,notes:'Useful object accumulation.'},{id:uid('l'),name:'Candy / mystery',target:25,saved:0,notes:'A little sanctioned nonsense.'}]}}
-function norm(s){s=s&&typeof s==='object'?s:blank();let tt={},go={};ORDER.forEach(k=>{if(Number.isFinite(Number(s.territoryTotals?.[k]))&&Number(s.territoryTotals[k])>=0)tt[k]=Number(s.territoryTotals[k])});Object.entries(s.calendarGoals||s.dayGoals||{}).forEach(([k,v])=>{if(/^\d{4}-\d{2}-\d{2}$/.test(k)&&nn(v)>0)go[k]=nn(v)});return{version:VERSION,isDemo:!!s.isDemo,settings:{taskPayout:nn(s.settings?.taskPayout),chunkSize:clamp(Math.round(n(s.settings?.chunkSize,100)/100)*100,100,2000),forecastDays:clamp(Math.round(n(s.settings?.forecastDays,28)/7)*7,14,84)},territoryTotals:tt,calendarGoals:go,assets:(s.assets||[]).map(x=>({id:x.id||uid('a'),name:String(x.name||'Untitled money'),type:A[x.type]?x.type:'cash',amount:nn(x.amount),expectedDate:x.expectedDate||'',confidence:clamp(n(x.confidence,100),0,100),notes:String(x.notes||'')})),expenses:(s.expenses||[]).map(x=>({id:x.id||uid('e'),name:String(x.name||'Untitled obligation'),amount:nn(x.amount),cadence:x.cadence==='oneoff'?'oneoff':'monthly',type:E[x.type]?x.type:'essential',dueDay:clamp(Math.round(n(x.dueDay,1)),1,31),dueDate:x.dueDate||'',notes:String(x.notes||'')})),debts:(s.debts||[]).map(x=>({id:x.id||uid('d'),name:String(x.name||'Untitled dragon'),balance:nn(x.balance),minPayment:nn(x.minPayment),dueDay:clamp(Math.round(n(x.dueDay,1)),1,31),apr:nn(x.apr),notes:String(x.notes||'')})),desires:(s.desires||[]).map(x=>({id:x.id||uid('l'),name:String(x.name||'Untitled track'),target:nn(x.target),saved:nn(x.saved),notes:String(x.notes||'')}))}}
-function load(){try{let z=localStorage.getItem(KEY);if(z)return norm(JSON.parse(z));for(let k of OLD){z=localStorage.getItem(k);if(z)return norm(JSON.parse(z))}}catch(e){}return demo()}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}$('#saved').textContent=`SAVED LOCALLY · ${new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'2-digit'}).format(new Date())}`}
-const sum=(arr,k)=>arr.reduce((s,x)=>s+nn(x[k]),0), itemTotal=t=>sum(state.assets.filter(x=>x.type===t),'amount'), hasOver=t=>Object.prototype.hasOwnProperty.call(state.territoryTotals,t), total=t=>hasOver(t)?nn(state.territoryTotals[t]):itemTotal(t), debtTotal=()=>sum(state.debts,'balance'), minTotal=()=>sum(state.debts,'minPayment'), expenseTotal=()=>sum(state.expenses.filter(x=>x.cadence==='monthly'),'amount'), wall=()=>expenseTotal()+minTotal();
-function monthly(day,start,end){let out=[],m=new Date(start.getFullYear(),start.getMonth(),1,12),stop=new Date(end.getFullYear(),end.getMonth(),1,12);while(m<=stop){let z=new Date(m.getFullYear(),m.getMonth(),Math.min(day,new Date(m.getFullYear(),m.getMonth()+1,0).getDate()),12);if(z>=start&&z<=end)out.push(z);m=new Date(m.getFullYear(),m.getMonth()+1,1,12)}return out}
-function events(days=state.settings.forecastDays){let start=today(),end=add(start,days-1),out=[];state.assets.filter(x=>x.type==='pipeline'&&x.expectedDate).forEach(x=>{let d=parse(x.expectedDate);if(d&&d>=start&&d<=end)out.push({source:'asset',id:x.id,kind:'income',name:x.name,amount:x.amount,effective:x.amount*x.confidence/100,date:d,meta:`${x.confidence}% confidence`})});state.expenses.forEach(x=>{let ds=x.cadence==='oneoff'?[parse(x.dueDate)].filter(Boolean):monthly(x.dueDay,start,end);ds.forEach(d=>{if(d>=start&&d<=end)out.push({source:'expense',id:x.id,kind:'expense',name:x.name,amount:x.amount,date:d,meta:x.cadence==='oneoff'?'one-off obligation':'monthly obligation'})})});state.debts.forEach(x=>monthly(x.dueDay,start,end).forEach(d=>out.push({source:'debt',id:x.id,kind:'debt',name:`${x.name} minimum`,amount:x.minPayment,date:d,meta:'debt minimum'})));return out.sort((a,b)=>a.date-b.date||(a.kind==='income'?-1:1))}
-function projection(){let bal=total('cash'),breach=null;events().forEach(e=>{bal+=e.kind==='income'?e.effective:-e.amount;if(bal<0&&!breach)breach=e});return{bal,breach}}
-const color={hard:'var(--hard)',pipeline:'var(--pipe)',cash:'var(--cash)',buffer:'var(--buffer)',invest:'var(--invest)',ess:'var(--ess)',flex:'var(--flex)',one:'var(--one)',debt:'var(--debt)',mass:'var(--mass)'};
-function attrs(t){return `data-k="${t.k}" data-id="${t.id||''}"`}
-function meta(t){if(t.k==='territory'){let a=A[t.id];return a&&{title:a[0],kicker:'LIQUIDITY TERRITORY',desc:a[3],c:a[2],label:'TERRITORY TOTAL'}}if(t.k==='expense'){let x=state.expenses.find(y=>y.id===t.id);return x&&{title:x.name,kicker:x.cadence==='monthly'?'OBLIGATION / MONTHLY':'OBLIGATION / ONE-OFF',desc:'Tune this amount directly. Its date and category stay on the named record.',c:E[x.type][1],label:'OBLIGATION AMOUNT',edit:'expense'}}if(t.k==='balance'||t.k==='minimum'){let x=state.debts.find(y=>y.id===t.id);return x&&{title:`${x.name} ${t.k==='balance'?'body':'minimum'}`,kicker:t.k==='balance'?'DRAGON BODY MASS':'MONTHLY DRAGON BITE',desc:t.k==='balance'?'Erase or add to the full balance. This is the dragon’s visible mass.':'Tune the monthly bite. It auto-populates its due date in the corridor.',c:t.k==='balance'?'mass':'debt',label:t.k==='balance'?'DEBT BALANCE':'MINIMUM PAYMENT',edit:'debt'}}if(t.k==='saved'){let x=state.desires.find(y=>y.id===t.id);return x&&{title:x.name,kicker:'SANCTIONED LIFE TRACK',desc:'Adjust the amount already set aside. The target stays intact.',c:'invest',label:'AMOUNT RESERVED',edit:'desire'}}}
-function get(t){if(t.k==='territory')return total(t.id);if(t.k==='expense')return state.expenses.find(x=>x.id===t.id)?.amount||0;if(t.k==='balance')return state.debts.find(x=>x.id===t.id)?.balance||0;if(t.k==='minimum')return state.debts.find(x=>x.id===t.id)?.minPayment||0;if(t.k==='saved')return state.desires.find(x=>x.id===t.id)?.saved||0;return 0}
-function set(t,v){v=nn(v);if(t.k==='territory')state.territoryTotals[t.id]=v;if(t.k==='expense'){let x=state.expenses.find(x=>x.id===t.id);if(x)x.amount=v}if(t.k==='balance'){let x=state.debts.find(x=>x.id===t.id);if(x)x.balance=v}if(t.k==='minimum'){let x=state.debts.find(x=>x.id===t.id);if(x)x.minPayment=v}if(t.k==='saved'){let x=state.desires.find(x=>x.id===t.id);if(x)x.saved=v}state.isDemo=false}
-function segments(){let z=[];ORDER.forEach(t=>z.push({name:A[t][0],short:A[t][1],amount:total(t),c:A[t][2],t:{k:'territory',id:t}}));state.expenses.forEach(x=>z.push({name:x.name,short:E[x.type][0],amount:x.amount,c:E[x.type][1],t:{k:'expense',id:x.id}}));state.debts.forEach(x=>{z.push({name:`${x.name} minimum`,short:'MIN BITE',amount:x.minPayment,c:'debt',t:{k:'minimum',id:x.id}});z.push({name:`${x.name} body`,short:'DRAGON',amount:x.balance,c:'mass',t:{k:'balance',id:x.id}})});return z.filter(x=>x.amount>0)}
-function renderStatus(){let next=events().find(e=>e.kind!=='income'),p=projection(),c=total('cash'),w=wall();$('#cashReadout').textContent=fmt(c);$('#monthlyReadout').textContent=fmt(w);$('#debtReadout').textContent=fmt(debtTotal());$('#taskValue').textContent=state.settings.taskPayout?fmt(state.settings.taskPayout):'—';$('#taskCopy').textContent=state.settings.taskPayout?`${chunks(state.settings.taskPayout)} enters true cash.`:'Set the usual completed-task payout.';if(next){let d=Math.max(0,Math.round((next.date-today())/86400000));$('#countdown').textContent=`T−${d}`;$('#countdownLabel').textContent=`${next.name} · ${fmt(next.amount)} · ${label(next.date)}`}else{$('#countdown').textContent='OPEN';$('#countdownLabel').textContent='No timed obligation placed yet.'}let v='The board is empty. Place the first true number and the terrain begins to exist.';if(state.assets.length||state.expenses.length||state.debts.length||Object.keys(state.territoryTotals).length){if(p.breach)v=`Active cash breaches after ${p.breach.name}. A route is needed before ${label(p.breach.date)}.`;else if(w&&c>=w)v='The baseline monthly wall is funded by true cash. Protection and acceleration are now the real questions.';else if(w)v=`True cash covers ${Math.round(c/w*100)}% of the monthly wall. The remaining gap still needs matter.`;else v='No recurring wall is defined yet. Place obligations before asking the board to forecast survival.'}$('#verdict').textContent=v;$('#demoBanner').hidden=!state.isDemo}
-function renderBody(){let s=segments();$('#quantum').textContent=`${fmt(quarter())} / cell`;if(!s.length){$('#flowMap').innerHTML='';$('#bodyGrid').innerHTML='<div class="empty">No financial matter yet. Add cash, a bill, or a dragon and the continuous body appears.</div>';return}$('#flowMap').innerHTML=s.map(x=>`<button class="mapitem c-${x.c}" ${attrs(x.t)}><i></i><span><b>${esc(x.name)}</b><small>${fmt(x.amount)} · ${chunks(x.amount)}</small></span></button>`).join('');let cellsHTML=[];s.forEach(x=>{let title=`${x.name}: ${fmt(x.amount)}. Tap to tune.`;for(let i=0;i<cells(x.amount);i++)cellsHTML.push(`<button class="bodycell ${i===0?'start':''}" style="--c:${color[x.c]}" title="${esc(title)}" ${attrs(x.t)}></button>`)});$('#bodyGrid').innerHTML=cellsHTML.join('')}
-function renderTime(){let start=today(),by={};events().forEach(e=>{let k=iso(e.date);(by[k]??=[]).push(e)});let html=[];for(let i=0;i<state.settings.forecastDays;i++){let d=add(start,i),k=iso(d),es=by[k]||[],g=nn(state.calendarGoals[k]);let dots=[g&&'goal',es.some(x=>x.kind==='income')&&'income',es.some(x=>x.kind==='expense')&&'bill',es.some(x=>x.kind==='debt')&&'debt'].filter(Boolean).map(x=>`<i class="${x}"></i>`).join('');html.push(`<button class="day ${i===0?'today':''}" data-day="${k}"><span class="daytop"><span><b class="daynum">DAY ${String(i+1).padStart(2,'0')}</b><small class="dayweek">${wk(d)}</small></span><strong class="daydate">${d.getDate()}</strong></span><span class="indicators">${dots}</span>${g?`<span class="daygoal">GOAL ${fmt(g)}</span>`:''}</button>`)}$('#timeGrid').innerHTML=html.join('');$('#timeStart').textContent=`${label(start)} / now`;$('#timeEnd').textContent=`${label(add(start,state.settings.forecastDays-1))} / horizon`}
-function renderTerritories(){$('#territories').innerHTML=ORDER.map(t=>{let x=A[t],v=total(t);return`<button class="territory c-${x[2]}" ${attrs({k:'territory',id:t})}><span class="tk"><span>${x[1]}</span><span>${hasOver(t)?'TOTAL TUNER':'ITEM SUM'}</span></span><h3>${x[0]}</h3><strong>${fmt(v)}</strong><p>${x[3]}</p><small>${chunks(v)} · TUNE ↔</small></button>`}).join('')}
-function renderExpenses(){$('#expenses').innerHTML=state.expenses.length?state.expenses.map(x=>{let d=x.cadence==='monthly'?`monthly · day ${x.dueDay}`:`one-off · ${x.dueDate?label(parse(x.dueDate)):'date needed'}`,c=E[x.type][1];return`<button class="card c-${c}" ${attrs({k:'expense',id:x.id})}><span class="ctop"><span>${E[x.type][0]}</span><span>${d}</span></span><strong class="cname">${esc(x.name)}</strong><b class="camount">${fmt(x.amount)}</b><span class="cmeta"><span>${chunks(x.amount)}</span><span>${x.cadence==='monthly'?'recurring pressure':'single impact'}</span></span><span class="hint">TAP TO TUNE ↔</span></button>`}).join(''):'<div class="empty">No obligations placed. Add rent, insurance, food/fuel, utilities, or one-off impact events.</div>'}
-function renderDebts(){$('#debts').innerHTML=state.debts.length?state.debts.map(x=>`<article class="card c-debt"><span class="ctop"><span>DEBT DRAGON</span><span>${x.apr?`${x.apr.toFixed(2)}% APR`:'APR unspecified'}</span></span><strong class="cname">${esc(x.name)}</strong><b class="camount">${fmt(x.balance)}</b><span class="cmeta"><span>${chunks(x.balance)}</span><span>due day ${x.dueDay}</span></span><div class="dragonbuttons"><button ${attrs({k:'balance',id:x.id})}>TUNE BODY<br>${fmt(x.balance)}</button><button ${attrs({k:'minimum',id:x.id})}>TUNE MINIMUM<br>${fmt(x.minPayment)}</button></div></article>`).join(''):'<div class="empty">No dragons placed. Add a debt account to make its full mass and monthly bite visible.</div>'}
-function renderDesires(){$('#desires').innerHTML=state.desires.length?state.desires.map(x=>{let p=x.target?clamp(x.saved/x.target*100,0,100):0;return`<button class="card c-invest" ${attrs({k:'saved',id:x.id})}><span class="ctop"><span>TRACKED DESIRE</span><span>${Math.round(p)}%</span></span><strong class="cname">${esc(x.name)}</strong><b class="camount">${fmt(x.saved)} <small>/ ${fmt(x.target)}</small></b><span class="bar"><i style="width:${p}%"></i></span><span class="cmeta"><span>${esc(x.notes||'A bounded place for something alive.')}</span></span><span class="hint">TAP TO TUNE ↔</span></button>`}).join(''):'<div class="empty">No sanctioned life tracks yet. Books, tools, toys, travel, food pleasures, and weirdness can all have a bounded address here.</div>'}
-function render(){renderStatus();renderBody();renderTime();renderTerritories();renderExpenses();renderDebts();renderDesires();save()}
-function open(id){if(sheet&&sheet!==id)close(sheet,false);sheet=id;$(`#${id}`).classList.add('open');$(`#${id}`).setAttribute('aria-hidden','false');$('#backdrop').hidden=false;document.body.classList.add('sheetopen')}
-function close(id=sheet,clear=true){if(!id)return;$(`#${id}`).classList.remove('open');$(`#${id}`).setAttribute('aria-hidden','true');if(clear&&id==='quickSheet')quick=null;if(clear&&id==='daySheet')dayKey=null;if(clear&&id==='editorSheet')editor=null;if(sheet===id)sheet=null;if(!sheet){$('#backdrop').hidden=true;document.body.classList.remove('sheetopen')}}
-function preview(v,c){return Array.from({length:Math.min(cells(v),180)},()=>`<i style="--c:${color[c]||color.cash}"></i>`).join('')}
-function syncQuick(v){qDraft=nn(v);let m=meta(quick);$('#quickInput').value=qDraft;$('#quickReadout').textContent=fmt(qDraft);$('#quickDialValue').textContent=`${fmt(qDraft)} · ${chunks(qDraft)}`;$('#quickPreview').innerHTML=preview(qDraft,m.c)}
-function openQuick(t){let m=meta(t);if(!m)return;quick=t;$('#quickKicker').textContent=m.kicker;$('#quickTitle').textContent=m.title;$('#quickDesc').textContent=m.desc;$('#quickExactLabel').textContent=m.label;$('#quickQuarterMinus').textContent=fmt(quarter());$('#quickQuarterPlus').textContent=fmt(quarter());$('#quickInput').step=quarter();$('#quickDetails').textContent=t.k==='territory'?'ADD / DETAILS':'DETAILS';syncQuick(get(t));open('quickSheet')}
-function applyQuick(){if(!quick)return;set(quick,$('#quickInput').value);close('quickSheet');render()}
-function details(){if(!quick)return;let t=quick;close('quickSheet');if(t.k==='territory')edit('asset',null,{type:t.id});else edit(meta(t).edit,t.id)}
-function syncDay(v){dayDraft=nn(v);$('#dayInput').value=dayDraft;$('#dayReadout').textContent=dayDraft?fmt(dayDraft):'NO GOAL';$('#dayDialValue').textContent=`${fmt(dayDraft)} · ${chunks(dayDraft)}`}
-function openDay(k){dayKey=k;let d=parse(k);$('#dayTitle').textContent=`${wk(d)} · ${label(d)}`;$('#dayQuarterMinus').textContent=fmt(quarter());$('#dayQuarterPlus').textContent=fmt(quarter());$('#dayInput').step=quarter();syncDay(state.calendarGoals[k]||0);let es=events().filter(x=>iso(x.date)===k);$('#dayEvents').innerHTML=es.length?es.map(x=>`<button class="dayevent ${x.kind}" data-edit="${x.source}" data-id="${x.id}"><span>${esc(x.name)} · ${esc(x.meta)}</span><b>${fmt(x.amount)}</b></button>`).join(''):'<p class="dayempty">No financial events on this day yet. That is an invitation, not an error.</p>';open('daySheet')}
-function saveDay(){if(!dayKey)return;let x=nn($('#dayInput').value);if(x)state.calendarGoals[dayKey]=x;else delete state.calendarGoals[dayKey];state.isDemo=false;close('daySheet');render()}
-function field(label,name,type='text',v='',opts={}){let f=opts.full?'full':'';let attrs=opts.attrs||'';if(type==='select')return`<label class="${f}"><span>${label}</span><select name="${name}" ${attrs}>${opts.choices.map(x=>`<option value="${x[0]}" ${String(x[0])===String(v)?'selected':''}>${x[1]}</option>`).join('')}</select></label>`;if(type==='textarea')return`<label class="${f}"><span>${label}</span><textarea name="${name}" ${attrs}>${esc(v)}</textarea></label>`;return`<label class="${f}"><span>${label}</span><input type="${type}" name="${name}" value="${esc(v)}" ${attrs}/></label>`}
-function record(type,id){let a=type==='asset'?state.assets:type==='expense'?state.expenses:type==='debt'?state.debts:state.desires;return id?a.find(x=>x.id===id):null}
-function edit(type,id=null,preset={}){editor={type,id,preset};let x=record(type,id),title={asset:'money object',expense:'obligation',debt:'debt dragon',desire:'sanctioned life track'}[type];$('#editorKicker').textContent=id?`EDIT ${title.toUpperCase()}`:`NEW ${title.toUpperCase()}`;$('#editorTitle').textContent=id?`Edit ${title}`:`Place a ${title}`;$('#deleteBtn').hidden=!id;let h='';if(type==='asset'){x=x||{name:'',type:preset.type||'cash',amount:'',expectedDate:preset.expectedDate||'',confidence:100,notes:''};h=field('Name','name','text',x.name,{full:true,attrs:'required'})+field('Liquidity territory','type','select',x.type,{choices:ORDER.map(k=>[k,A[k][0]])})+field('Amount','amount','number',x.amount,{attrs:'min="0" step="1" required'})+field('Expected landing date','expectedDate','date',x.expectedDate)+field('Pipeline confidence %','confidence','number',x.confidence,{attrs:'min="0" max="100" step="1"'})+field('Notes','notes','textarea',x.notes,{full:true})}if(type==='expense'){x=x||{name:'',amount:'',cadence:preset.cadence||'monthly',type:preset.type||'essential',dueDay:today().getDate(),dueDate:preset.dueDate||'',notes:''};h=field('Name','name','text',x.name,{full:true,attrs:'required'})+field('Amount','amount','number',x.amount,{attrs:'min="0" step="1" required'})+field('Category','type','select',x.type,{choices:Object.entries(E).map(([k,v])=>[k,v[0]])})+field('Cadence','cadence','select',x.cadence,{choices:[['monthly','Monthly recurring'],['oneoff','One-off date']]})+field('Monthly due day','dueDay','number',x.dueDay,{attrs:'min="1" max="31" step="1"'})+field('One-off due date','dueDate','date',x.dueDate,{full:true})+field('Notes','notes','textarea',x.notes,{full:true})}if(type==='debt'){x=x||{name:'',balance:'',minPayment:'',dueDay:today().getDate(),apr:'',notes:''};h=field('Name','name','text',x.name,{full:true,attrs:'required'})+field('Current balance','balance','number',x.balance,{attrs:'min="0" step="1" required'})+field('Monthly minimum','minPayment','number',x.minPayment,{attrs:'min="0" step="1" required'})+field('Due day','dueDay','number',x.dueDay,{attrs:'min="1" max="31" step="1"'})+field('APR','apr','number',x.apr,{attrs:'min="0" step="0.01"'})+field('Notes','notes','textarea',x.notes,{full:true})}if(type==='desire'){x=x||{name:'',target:'',saved:'',notes:''};h=field('Name','name','text',x.name,{full:true,attrs:'required'})+field('Target amount','target','number',x.target,{attrs:'min="0" step="1" required'})+field('Already reserved','saved','number',x.saved,{attrs:'min="0" step="1"'})+field('Why this matters','notes','textarea',x.notes,{full:true})}$('#editorFields').innerHTML=h;open('editorSheet')}
-function saveEdit(ev){ev.preventDefault();if(!editor)return;let {type,id}=editor,o=Object.fromEntries(new FormData($('#editorForm')).entries()),old=record(type,id),x;if(type==='asset')x={id:id||uid('a'),name:o.name.trim()||'Untitled money',type:A[o.type]?o.type:'cash',amount:nn(o.amount),expectedDate:o.expectedDate||'',confidence:clamp(n(o.confidence,100),0,100),notes:o.notes.trim()};if(type==='expense')x={id:id||uid('e'),name:o.name.trim()||'Untitled obligation',amount:nn(o.amount),cadence:o.cadence==='oneoff'?'oneoff':'monthly',type:E[o.type]?o.type:'essential',dueDay:clamp(Math.round(n(o.dueDay,1)),1,31),dueDate:o.dueDate||'',notes:o.notes.trim()};if(type==='debt')x={id:id||uid('d'),name:o.name.trim()||'Untitled dragon',balance:nn(o.balance),minPayment:nn(o.minPayment),dueDay:clamp(Math.round(n(o.dueDay,1)),1,31),apr:nn(o.apr),notes:o.notes.trim()};if(type==='desire')x={id:id||uid('l'),name:o.name.trim()||'Untitled track',target:nn(o.target),saved:nn(o.saved),notes:o.notes.trim()};let arr=type==='asset'?state.assets:type==='expense'?state.expenses:type==='debt'?state.debts:state.desires,i=arr.findIndex(y=>y.id===x.id);if(i>=0)arr[i]=x;else arr.push(x);if(type==='asset'){if(old?.type)delete state.territoryTotals[old.type];delete state.territoryTotals[x.type]}state.isDemo=false;close('editorSheet');render()}
-function del(){if(!editor?.id)return;let x=record(editor.type,editor.id);if(!x||!confirm(`Delete “${x.name}” from the board?`))return;let a=editor.type==='asset'?state.assets:editor.type==='expense'?state.expenses:editor.type==='debt'?state.debts:state.desires;a.splice(a.findIndex(y=>y.id===x.id),1);if(editor.type==='asset')delete state.territoryTotals[x.type];state.isDemo=false;close('editorSheet');render()}
-function settings(){ $('#taskPayoutInput').value=state.settings.taskPayout;$('#tileInput').value=tile();$('#horizonInput').value=state.settings.forecastDays;open('settingsSheet') }
-function saveSettings(e){e.preventDefault();state.settings.taskPayout=nn($('#taskPayoutInput').value);state.settings.chunkSize=clamp(Math.round(n($('#tileInput').value,100)/100)*100,100,2000);state.settings.forecastDays=clamp(Math.round(n($('#horizonInput').value,28)/7)*7,14,84);state.isDemo=false;close('settingsSheet');render()}
-function exportBoard(){let b=new Blob([JSON.stringify({app:'CHUNK // SOLVENCY',version:VERSION,exportedAt:new Date().toISOString(),state},null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`chunk-solvency-backup-${iso(today())}.json`;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(u)}
-function importBoard(file){if(!file)return;let r=new FileReader;r.onload=()=>{try{let x=JSON.parse(r.result);state=norm(x.state||x);state.isDemo=false;render();alert('Board imported. This browser now holds the imported local board.')}catch(e){alert('That file was not a valid CHUNK board backup.')}};r.readAsText(file)}
-function begin(e,type){e.preventDefault();drag={type,x:e.clientX};e.currentTarget.setPointerCapture?.(e.pointerId)}function move(e){if(!drag)return;e.preventDefault();let z=Math.trunc((e.clientX-drag.x)/18);if(!z)return;drag.x+=z*18;if(drag.type==='q')syncQuick(qDraft+z*quarter());else syncDay(dayDraft+z*quarter())}function end(){drag=null}
-function click(e){let x=e.target.closest('[data-close]');if(x){close(x.dataset.close);return}x=e.target.closest('[data-add]');if(x){edit(x.dataset.add);return}x=e.target.closest('[data-day]');if(x){openDay(x.dataset.day);return}x=e.target.closest('[data-edit]');if(x){close('daySheet');edit(x.dataset.edit,x.dataset.id);return}x=e.target.closest('[data-k]');if(x){openQuick({k:x.dataset.k,id:x.dataset.id});return}}
-function keys(e){if(e.key==='Escape')close();if(e.target===$('#quickDial')){if(e.key==='ArrowLeft')syncQuick(qDraft-quarter());if(e.key==='ArrowRight')syncQuick(qDraft+quarter())}if(e.target===$('#dayDial')){if(e.key==='ArrowLeft')syncDay(dayDraft-quarter());if(e.key==='ArrowRight')syncDay(dayDraft+quarter())}}
-function init(){ $('#exportBtn').onclick=exportBoard;$('#importBtn').onclick=()=>$('#importInput').click();$('#importInput').onchange=e=>importBoard(e.target.files[0]);$('#settingsBtn').onclick=settings;$('#taskBtn').onclick=settings;$('#cleanBtn').onclick=()=>{if(confirm('Start a clean board?')){state=blank();render()}};$('#loadDemoBtn').onclick=()=>{if(confirm('Replace this local board with demo terrain? Export first if you want a backup.')){state=demo();render()}};$('#resetBtn').onclick=()=>{if(confirm('Erase all local board data?')){state=blank();render()}};$('#quickInput').oninput=e=>syncQuick(e.target.value);$('#quickMinus').onclick=()=>syncQuick(qDraft-quarter());$('#quickPlus').onclick=()=>syncQuick(qDraft+quarter());$('#quickApply').onclick=applyQuick;$('#quickDetails').onclick=details;$('#dayInput').oninput=e=>syncDay(e.target.value);$('#dayMinus').onclick=()=>syncDay(dayDraft-quarter());$('#dayPlus').onclick=()=>syncDay(dayDraft+quarter());$('#clearGoal').onclick=()=>syncDay(0);$('#saveDay').onclick=saveDay;$('#addIncomeDay').onclick=()=>{let k=dayKey;close('daySheet');edit('asset',null,{type:'pipeline',expectedDate:k})};$('#addExpenseDay').onclick=()=>{let k=dayKey;close('daySheet');edit('expense',null,{cadence:'oneoff',dueDate:k})};$('#editorForm').onsubmit=saveEdit;$('#deleteBtn').onclick=del;$('#settingsForm').onsubmit=saveSettings;$('#backdrop').onclick=()=>close();$('#quickDial').onpointerdown=e=>begin(e,'q');$('#dayDial').onpointerdown=e=>begin(e,'d');window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',end);window.addEventListener('pointercancel',end);document.addEventListener('click',click);document.addEventListener('keydown',keys);document.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));render()}
-// All helper functions and consts are initialized now; only now is it safe to deserialize or create the board.
-state=load();
-document.addEventListener('DOMContentLoaded',init);
+const VERSION = 5;
+const KEY = 'chunk-solvency-v5';
+const OLD_KEYS = ['chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
+
+const A = {
+  hardAsset: ['Hard assets', 'HARD ASSET', 'hard', 'Sellable possessions. Least liquid.'],
+  pipeline: ['Pipeline', 'PIPELINE', 'pipeline', 'Expected money. Not active cash until it lands.'],
+  cash: ['True cash', 'TRUE CASH', 'cash', 'Immediately accessible money.'],
+  buffer: ['Protected buffer', 'PROTECTED BUFFER', 'buffer', 'Money deliberately separated from active panic.'],
+  investment: ['Investments', 'INVESTMENTS', 'invest', 'Conditional liquidity with a future cost.']
+};
+const ORDER = ['hardAsset', 'pipeline', 'cash', 'buffer', 'investment'];
+const E = {
+  essential: ['FIXED / ESSENTIAL', 'ess'],
+  flexible: ['VARIABLE / FLEXIBLE', 'flex'],
+  oneoff: ['ONE-OFF', 'one']
+};
+const COLOR = {
+  hard: 'var(--hard)', pipeline: 'var(--pipe)', cash: 'var(--cash)', buffer: 'var(--buffer)',
+  invest: 'var(--invest)', ess: 'var(--ess)', flex: 'var(--flex)', one: 'var(--one)',
+  debt: 'var(--debt)', mass: 'var(--mass)'
+};
+
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+const n = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const nn = (value) => Math.max(0, n(value));
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+}[character]));
+const fmt = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(nn(value));
+const today = () => {
+  const date = new Date();
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+};
+const add = (date, days) => {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+};
+const iso = (date) => {
+  const value = date instanceof Date ? date : new Date(`${date}T12:00:00`);
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+};
+const parse = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? new Date(`${value}T12:00:00`) : null;
+const label = (date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+const wk = (date) => new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date).toUpperCase();
+const tuneStep = () => 25;
+
+let state;
+let quick = null;
+let qDraft = 0;
+let dayKey = null;
+let dayDraft = 0;
+let editor = null;
+let sheet = null;
+let drag = null;
+
+function blank() {
+  return {
+    version: VERSION,
+    isDemo: false,
+    settings: {
+      taskPayout: 0,
+      cellQuantum: 25,
+      forecastDays: 28,
+      bodyMode: 'flow',
+      hiddenSegments: {}
+    },
+    territoryTotals: {},
+    calendarGoals: {},
+    assets: [],
+    expenses: [],
+    debts: [],
+    desires: []
+  };
+}
+
+function demo() {
+  const date = today();
+  return {
+    version: VERSION,
+    isDemo: true,
+    settings: { taskPayout: 66, cellQuantum: 25, forecastDays: 28, bodyMode: 'flow', hiddenSegments: {} },
+    territoryTotals: {},
+    calendarGoals: {},
+    assets: [
+      { id: uid('a'), name: 'Checking / active cash', type: 'cash', amount: 420, expectedDate: '', confidence: 100, notes: '' },
+      { id: uid('a'), name: 'Protected buffer', type: 'buffer', amount: 250, expectedDate: '', confidence: 100, notes: '' },
+      { id: uid('a'), name: 'Likely DA payout', type: 'pipeline', amount: 66, expectedDate: iso(add(date, 2)), confidence: 90, notes: '' },
+      { id: uid('a'), name: 'Portfolio / conditional', type: 'investment', amount: 950, expectedDate: '', confidence: 100, notes: '' },
+      { id: uid('a'), name: 'Sellable misc.', type: 'hardAsset', amount: 130, expectedDate: '', confidence: 100, notes: '' }
+    ],
+    expenses: [
+      { id: uid('e'), name: 'Rent', amount: 925, cadence: 'monthly', type: 'essential', dueDay: add(date, 9).getDate(), dueDate: '', notes: '' },
+      { id: uid('e'), name: 'Insurance', amount: 86, cadence: 'monthly', type: 'essential', dueDay: add(date, 4).getDate(), dueDate: '', notes: '' },
+      { id: uid('e'), name: 'Food + fuel reserve', amount: 280, cadence: 'monthly', type: 'flexible', dueDay: add(date, 14).getDate(), dueDate: '', notes: '' }
+    ],
+    debts: [
+      { id: uid('d'), name: 'Credit card', balance: 9200, minPayment: 263, dueDay: add(date, 18).getDate(), apr: 18.99, notes: '' }
+    ],
+    desires: [
+      { id: uid('l'), name: 'Hollow Press books', target: 100, saved: 0, notes: 'Bounded book hunger.' },
+      { id: uid('l'), name: 'Tools', target: 200, saved: 0, notes: 'Useful object accumulation.' },
+      { id: uid('l'), name: 'Candy / mystery', target: 25, saved: 0, notes: 'A little sanctioned nonsense.' }
+    ]
+  };
+}
+
+function normalize(input) {
+  const source = input && typeof input === 'object' ? input : blank();
+  const territoryTotals = {};
+  const calendarGoals = {};
+  const hiddenSegments = source.settings?.hiddenSegments && typeof source.settings.hiddenSegments === 'object'
+    ? source.settings.hiddenSegments
+    : {};
+
+  ORDER.forEach((type) => {
+    if (Number.isFinite(Number(source.territoryTotals?.[type])) && Number(source.territoryTotals[type]) >= 0) {
+      territoryTotals[type] = Number(source.territoryTotals[type]);
+    }
+  });
+
+  Object.entries(source.calendarGoals || source.dayGoals || {}).forEach(([key, value]) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key) && nn(value) > 0) calendarGoals[key] = nn(value);
+  });
+
+  const migratedQuantum = source.settings?.cellQuantum ?? (source.settings?.chunkSize ? Math.max(25, Math.round(n(source.settings.chunkSize) / 4)) : 25);
+  const cellQuantum = Number(migratedQuantum) === 100 ? 100 : 25;
+
+  return {
+    version: VERSION,
+    isDemo: !!source.isDemo,
+    settings: {
+      taskPayout: nn(source.settings?.taskPayout),
+      cellQuantum,
+      forecastDays: clamp(Math.round(n(source.settings?.forecastDays, 28) / 7) * 7, 14, 84),
+      bodyMode: source.settings?.bodyMode === 'exploded' ? 'exploded' : 'flow',
+      hiddenSegments: Object.fromEntries(Object.entries(hiddenSegments).filter(([, hidden]) => !!hidden))
+    },
+    territoryTotals,
+    calendarGoals,
+    assets: (source.assets || []).map((item) => ({
+      id: item.id || uid('a'), name: String(item.name || 'Untitled money'), type: A[item.type] ? item.type : 'cash',
+      amount: nn(item.amount), expectedDate: item.expectedDate || '', confidence: clamp(n(item.confidence, 100), 0, 100), notes: String(item.notes || '')
+    })),
+    expenses: (source.expenses || []).map((item) => ({
+      id: item.id || uid('e'), name: String(item.name || 'Untitled obligation'), amount: nn(item.amount),
+      cadence: item.cadence === 'oneoff' ? 'oneoff' : 'monthly', type: E[item.type] ? item.type : 'essential',
+      dueDay: clamp(Math.round(n(item.dueDay, 1)), 1, 31), dueDate: item.dueDate || '', notes: String(item.notes || '')
+    })),
+    debts: (source.debts || []).map((item) => ({
+      id: item.id || uid('d'), name: String(item.name || 'Untitled dragon'), balance: nn(item.balance), minPayment: nn(item.minPayment),
+      dueDay: clamp(Math.round(n(item.dueDay, 1)), 1, 31), apr: nn(item.apr), notes: String(item.notes || '')
+    })),
+    desires: (source.desires || []).map((item) => ({
+      id: item.id || uid('l'), name: String(item.name || 'Untitled track'), target: nn(item.target), saved: nn(item.saved), notes: String(item.notes || '')
+    }))
+  };
+}
+
+function load() {
+  try {
+    let saved = localStorage.getItem(KEY);
+    if (saved) return normalize(JSON.parse(saved));
+    for (const oldKey of OLD_KEYS) {
+      saved = localStorage.getItem(oldKey);
+      if (saved) return normalize(JSON.parse(saved));
+    }
+  } catch (error) {
+    console.warn('Unable to load local CHUNK state.', error);
+  }
+  return demo();
+}
+
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch (error) {
+    console.warn('Unable to save local CHUNK state.', error);
+  }
+  const saved = $('#saved');
+  if (saved) saved.textContent = `SAVED LOCALLY · ${new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date())}`;
+}
+
+const sum = (items, key) => items.reduce((total, item) => total + nn(item[key]), 0);
+const itemTotal = (type) => sum(state.assets.filter((item) => item.type === type), 'amount');
+const hasOverride = (type) => Object.prototype.hasOwnProperty.call(state.territoryTotals, type);
+const total = (type) => hasOverride(type) ? nn(state.territoryTotals[type]) : itemTotal(type);
+const debtTotal = () => sum(state.debts, 'balance');
+const minTotal = () => sum(state.debts, 'minPayment');
+const expenseTotal = () => sum(state.expenses.filter((item) => item.cadence === 'monthly'), 'amount');
+const wall = () => expenseTotal() + minTotal();
+const quantum = () => state.settings.cellQuantum === 100 ? 100 : 25;
+const segmentId = (target) => `${target.k}:${target.id || ''}`;
+const isVisible = (target) => !state.settings.hiddenSegments[segmentId(target)];
+
+function monthly(day, start, end) {
+  const dates = [];
+  let month = new Date(start.getFullYear(), start.getMonth(), 1, 12);
+  const stop = new Date(end.getFullYear(), end.getMonth(), 1, 12);
+  while (month <= stop) {
+    const date = new Date(month.getFullYear(), month.getMonth(), Math.min(day, new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()), 12);
+    if (date >= start && date <= end) dates.push(date);
+    month = new Date(month.getFullYear(), month.getMonth() + 1, 1, 12);
+  }
+  return dates;
+}
+
+function events(days = state.settings.forecastDays) {
+  const start = today();
+  const end = add(start, days - 1);
+  const output = [];
+
+  state.assets.filter((item) => item.type === 'pipeline' && item.expectedDate).forEach((item) => {
+    const date = parse(item.expectedDate);
+    if (date && date >= start && date <= end) {
+      output.push({ source: 'asset', id: item.id, kind: 'income', name: item.name, amount: item.amount, effective: item.amount * item.confidence / 100, date, meta: `${item.confidence}% confidence` });
+    }
+  });
+
+  state.expenses.forEach((item) => {
+    const dates = item.cadence === 'oneoff' ? [parse(item.dueDate)].filter(Boolean) : monthly(item.dueDay, start, end);
+    dates.forEach((date) => {
+      if (date >= start && date <= end) output.push({ source: 'expense', id: item.id, kind: 'expense', name: item.name, amount: item.amount, date, meta: item.cadence === 'oneoff' ? 'one-off obligation' : 'monthly obligation' });
+    });
+  });
+
+  state.debts.forEach((item) => {
+    monthly(item.dueDay, start, end).forEach((date) => output.push({ source: 'debt', id: item.id, kind: 'debt', name: `${item.name} minimum`, amount: item.minPayment, date, meta: 'debt minimum' }));
+  });
+
+  return output.sort((left, right) => left.date - right.date || (left.kind === 'income' ? -1 : 1));
+}
+
+function projection() {
+  let balance = total('cash');
+  let breach = null;
+  events().forEach((event) => {
+    balance += event.kind === 'income' ? event.effective : -event.amount;
+    if (balance < 0 && !breach) breach = event;
+  });
+  return { balance, breach };
+}
+
+function targetAttrs(target) {
+  return `data-k="${target.k}" data-id="${target.id || ''}"`;
+}
+
+function meta(target) {
+  if (target.k === 'territory') {
+    const config = A[target.id];
+    return config && { title: config[0], kicker: 'LIQUIDITY TERRITORY', desc: config[3], color: config[2], label: 'TERRITORY TOTAL', edit: 'asset' };
+  }
+  if (target.k === 'expense') {
+    const item = state.expenses.find((entry) => entry.id === target.id);
+    return item && { title: item.name, kicker: item.cadence === 'monthly' ? 'OBLIGATION / MONTHLY' : 'OBLIGATION / ONE-OFF', desc: 'Tune this amount directly. Its date and category stay on the named record.', color: E[item.type][1], label: 'OBLIGATION AMOUNT', edit: 'expense' };
+  }
+  if (target.k === 'balance' || target.k === 'minimum') {
+    const item = state.debts.find((entry) => entry.id === target.id);
+    return item && {
+      title: `${item.name} ${target.k === 'balance' ? 'body' : 'minimum'}`,
+      kicker: target.k === 'balance' ? 'DRAGON BODY MASS' : 'MONTHLY DRAGON BITE',
+      desc: target.k === 'balance' ? 'Erase or add to the total balance. This is the dragon’s visible mass.' : 'Tune the monthly bite. It auto-populates its due date in the corridor.',
+      color: target.k === 'balance' ? 'mass' : 'debt', label: target.k === 'balance' ? 'DEBT BALANCE' : 'MINIMUM PAYMENT', edit: 'debt'
+    };
+  }
+  if (target.k === 'saved') {
+    const item = state.desires.find((entry) => entry.id === target.id);
+    return item && { title: item.name, kicker: 'SANCTIONED LIFE TRACK', desc: 'Adjust the amount already set aside. The target remains intact.', color: 'invest', label: 'AMOUNT RESERVED', edit: 'desire' };
+  }
+  return null;
+}
+
+function get(target) {
+  if (target.k === 'territory') return total(target.id);
+  if (target.k === 'expense') return state.expenses.find((item) => item.id === target.id)?.amount || 0;
+  if (target.k === 'balance') return state.debts.find((item) => item.id === target.id)?.balance || 0;
+  if (target.k === 'minimum') return state.debts.find((item) => item.id === target.id)?.minPayment || 0;
+  if (target.k === 'saved') return state.desires.find((item) => item.id === target.id)?.saved || 0;
+  return 0;
+}
+
+function set(target, value) {
+  const numeric = nn(value);
+  if (target.k === 'territory') state.territoryTotals[target.id] = numeric;
+  if (target.k === 'expense') {
+    const item = state.expenses.find((entry) => entry.id === target.id);
+    if (item) item.amount = numeric;
+  }
+  if (target.k === 'balance') {
+    const item = state.debts.find((entry) => entry.id === target.id);
+    if (item) item.balance = numeric;
+  }
+  if (target.k === 'minimum') {
+    const item = state.debts.find((entry) => entry.id === target.id);
+    if (item) item.minPayment = numeric;
+  }
+  if (target.k === 'saved') {
+    const item = state.desires.find((entry) => entry.id === target.id);
+    if (item) item.saved = numeric;
+  }
+  state.isDemo = false;
+}
+
+function segments() {
+  const output = [];
+  ORDER.forEach((type) => output.push({ name: A[type][0], short: A[type][1], amount: total(type), color: A[type][2], target: { k: 'territory', id: type }, kind: 'territory' }));
+  state.desires.forEach((item) => output.push({ name: item.name, short: 'SANCTIONED LIFE', amount: item.saved, targetAmount: item.target, color: 'invest', target: { k: 'saved', id: item.id }, kind: 'life' }));
+  state.expenses.forEach((item) => output.push({ name: item.name, short: E[item.type][0], amount: item.amount, color: E[item.type][1], target: { k: 'expense', id: item.id }, kind: 'expense' }));
+  state.debts.forEach((item) => {
+    output.push({ name: `${item.name} minimum`, short: 'MIN BITE', amount: item.minPayment, color: 'debt', target: { k: 'minimum', id: item.id }, kind: 'minimum' });
+    output.push({ name: `${item.name} body`, short: 'DRAGON MASS', amount: item.balance, color: 'mass', target: { k: 'balance', id: item.id }, kind: 'balance' });
+  });
+  return output;
+}
+
+function visualUnits(amount, unit = quantum()) {
+  const safe = nn(amount);
+  const full = Math.floor(safe / unit);
+  const remainder = safe - full * unit;
+  const tail = remainder > 0.0001 ? remainder / unit : 0;
+  return { full, tail };
+}
+
+function amountDescription(amount, unit = quantum()) {
+  const visual = visualUnits(amount, unit);
+  const whole = visual.full === 1 ? 'cell' : 'cells';
+  const tail = visual.tail ? ` + ${(visual.tail * 100).toFixed(0)}% tail` : '';
+  return `${visual.full} ${whole}${tail}`;
+}
+
+function bodyCells(segment, options = {}) {
+  const unit = options.unit ?? quantum();
+  const max = options.max ?? Infinity;
+  const visual = visualUnits(segment.amount, unit);
+  const count = Math.min(visual.full, max);
+  const parts = [];
+  const title = `${segment.name}: ${fmt(segment.amount)}. Tap to tune.`;
+
+  for (let index = 0; index < count; index += 1) {
+    const first = index === 0 ? 'seg-start' : '';
+    const tileStart = unit === 25 && index % 4 === 0 ? 'tile-start' : '';
+    parts.push(`<button class="bodycell ${first} ${tileStart}" style="--c:${COLOR[segment.color]};--fill:1" title="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`);
+  }
+  if (visual.full < max && visual.tail > 0) {
+    const first = visual.full === 0 ? 'seg-start' : '';
+    const tileStart = unit === 25 && visual.full % 4 === 0 ? 'tile-start' : '';
+    parts.push(`<button class="bodycell partial ${first} ${tileStart}" style="--c:${COLOR[segment.color]};--fill:${visual.tail}" title="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`);
+  }
+  return parts.join('');
+}
+
+function miniTiles(amount, color, maxCells = 48) {
+  const visual = visualUnits(amount, 25);
+  const pieces = [];
+  const complete = Math.min(visual.full, maxCells);
+  for (let index = 0; index < complete; index += 1) pieces.push('<i style="--fill:1"></i>');
+  if (visual.full < maxCells && visual.tail > 0) pieces.push(`<i class="partial" style="--fill:${visual.tail}"></i>`);
+  const totalCells = visual.full + (visual.tail ? 1 : 0);
+  if (totalCells > maxCells) pieces.push(`<span class="more">+${totalCells - maxCells}</span>`);
+  return `<div class="minitiles c-${color}" aria-label="${esc(amountDescription(amount, 25))}">${pieces.join('')}</div>`;
+}
+
+function hollowTiles(saved, target, maxCells = 48) {
+  const targetCells = Math.max(1, Math.ceil(nn(target) / 25));
+  const visible = Math.min(targetCells, maxCells);
+  const savedVisual = visualUnits(saved, 25);
+  const parts = [];
+  for (let index = 0; index < visible; index += 1) {
+    const remaining = savedVisual.full - index;
+    let className = '';
+    let fill = 0;
+    if (remaining > 0) { className = 'filled'; fill = 1; }
+    else if (remaining === 0 && savedVisual.tail > 0) { className = 'filled'; fill = savedVisual.tail; }
+    parts.push(`<i class="${className}" style="--fill:${fill}"></i>`);
+  }
+  if (targetCells > maxCells) parts.push(`<span class="more">+${targetCells - maxCells}</span>`);
+  return `<div class="hollowtiles" aria-label="${esc(`${fmt(saved)} reserved of ${fmt(target)} target`)}">${parts.join('')}</div>`;
+}
+
+function renderStatus() {
+  const next = events().find((event) => event.kind !== 'income');
+  const p = projection();
+  const cash = total('cash');
+  const monthlyWall = wall();
+
+  $('#cashReadout').textContent = fmt(cash);
+  $('#monthlyReadout').textContent = fmt(monthlyWall);
+  $('#debtReadout').textContent = fmt(debtTotal());
+  $('#taskValue').textContent = state.settings.taskPayout ? fmt(state.settings.taskPayout) : '—';
+  $('#taskCopy').textContent = state.settings.taskPayout ? `${amountDescription(state.settings.taskPayout, 25)} enters true cash.` : 'Set the usual completed-task payout.';
+
+  if (next) {
+    const days = Math.max(0, Math.round((next.date - today()) / 86400000));
+    $('#countdown').textContent = `T−${days}`;
+    $('#countdownLabel').textContent = `${next.name} · ${fmt(next.amount)} · ${label(next.date)}`;
+  } else {
+    $('#countdown').textContent = 'OPEN';
+    $('#countdownLabel').textContent = 'No timed obligation placed yet.';
+  }
+
+  let verdict = 'The board is empty. Place the first true number and the terrain begins to exist.';
+  if (state.assets.length || state.expenses.length || state.debts.length || Object.keys(state.territoryTotals).length) {
+    if (p.breach) verdict = `Active cash breaches after ${p.breach.name}. A route is needed before ${label(p.breach.date)}.`;
+    else if (monthlyWall && cash >= monthlyWall) verdict = 'The baseline monthly wall is funded by true cash. Protection and acceleration are now the real questions.';
+    else if (monthlyWall) verdict = `True cash covers ${Math.round(cash / monthlyWall * 100)}% of the monthly wall. The remaining gap still needs matter.`;
+    else verdict = 'No recurring wall is defined yet. Place obligations before asking the board to forecast survival.';
+  }
+  $('#verdict').textContent = verdict;
+  $('#demoBanner').hidden = !state.isDemo;
+}
+
+function renderBodyControls() {
+  $$('[data-quantum]').forEach((button) => button.classList.toggle('active', Number(button.dataset.quantum) === quantum()));
+  $$('[data-bodymode]').forEach((button) => button.classList.toggle('active', button.dataset.bodymode === state.settings.bodyMode));
+  $('#quantum').textContent = `${fmt(quantum())} / CELL`;
+}
+
+function renderBody() {
+  const allSegments = segments();
+  const visibleSegments = allSegments.filter((segment) => isVisible(segment.target));
+  const activeSegments = visibleSegments.filter((segment) => segment.amount > 0);
+
+  $('#flowMap').innerHTML = allSegments.map((segment) => {
+    const shown = isVisible(segment.target);
+    const target = segment.target;
+    const zero = segment.amount === 0 ? ' · ZERO' : '';
+    return `<article class="mapitem c-${segment.color}">
+      <button class="maptune" ${targetAttrs(target)} type="button"><i></i><span><b>${esc(segment.name)}</b><small>${fmt(segment.amount)}${zero} · ${esc(amountDescription(segment.amount))}</small></span></button>
+      <button class="visToggle ${shown ? 'on' : ''}" data-visible="${segmentId(target)}" type="button">${shown ? 'ON' : 'OFF'}</button>
+    </article>`;
+  }).join('');
+
+  const frame = $('#bodyFrame');
+  const grid = $('#bodyGrid');
+  frame.classList.toggle('exploded', state.settings.bodyMode === 'exploded');
+
+  if (state.settings.bodyMode === 'flow') {
+    grid.className = 'bodygrid';
+    if (!activeSegments.length) {
+      grid.innerHTML = '<div class="empty">No visible financial matter yet. The tuning key still holds every zero territory in readiness.</div>';
+    } else {
+      grid.innerHTML = activeSegments.map((segment) => bodyCells(segment)).join('');
+    }
+    $('#bodyCaption').textContent = `CONTINUOUS VIEW · ${fmt(quantum())} exact cells · no padding voids. Full cells are exact; a final tail cell holds every remaining dollar with literal proportional fill.`;
+  } else {
+    grid.className = 'explodedbody';
+    grid.innerHTML = visibleSegments.map((segment) => {
+      const columns = quantum() === 25 ? 20 : 5;
+      return `<article class="explodedgroup c-${segment.color}">
+        <div class="explodedtitle"><b>${esc(segment.name)}</b><span>${fmt(segment.amount)}</span></div>
+        ${segment.amount > 0 ? `<div class="bodygrid" style="--cols:${columns}">${bodyCells(segment)}</div>` : '<div class="explodedzero">ZERO · READY</div>'}
+      </article>`;
+    }).join('') || '<div class="empty">Everything is hidden. Turn a segment ON in the tuning key to restore it.</div>';
+    $('#bodyCaption').textContent = `EXPLODED VIEW · each selected territory becomes a clean contained rectangle, five major $100 tiles wide when practical. The same exact tail logic still applies.`;
+  }
+}
+
+function renderTime() {
+  const start = today();
+  const byDate = {};
+  events().forEach((event) => {
+    const key = iso(event.date);
+    (byDate[key] ??= []).push(event);
+  });
+
+  const cells = [];
+  for (let index = 0; index < state.settings.forecastDays; index += 1) {
+    const date = add(start, index);
+    const key = iso(date);
+    const calendarEvents = byDate[key] || [];
+    const goal = nn(state.calendarGoals[key]);
+    const dots = [
+      goal && 'goal',
+      calendarEvents.some((event) => event.kind === 'income') && 'income',
+      calendarEvents.some((event) => event.kind === 'expense') && 'bill',
+      calendarEvents.some((event) => event.kind === 'debt') && 'debt'
+    ].filter(Boolean).map((type) => `<i class="${type}"></i>`).join('');
+
+    cells.push(`<button class="day ${index === 0 ? 'today' : ''}" data-day="${key}" type="button">
+      <span class="daytop"><span><b class="daynum">DAY ${String(index + 1).padStart(2, '0')}</b><small class="dayweek">${wk(date)}</small></span><strong class="daydate">${date.getDate()}</strong></span>
+      <span class="indicators">${dots}</span>${goal ? `<span class="daygoal">GOAL ${fmt(goal)}</span>` : ''}
+    </button>`);
+  }
+  $('#timeGrid').innerHTML = cells.join('');
+  $('#timeStart').textContent = `${label(start)} / now`;
+  $('#timeEnd').textContent = `${label(add(start, state.settings.forecastDays - 1))} / horizon`;
+}
+
+function renderTerritories() {
+  $('#territories').innerHTML = ORDER.map((type) => {
+    const config = A[type];
+    const value = total(type);
+    return `<button class="territory c-${config[2]}" ${targetAttrs({ k: 'territory', id: type })} type="button">
+      <span class="tk"><span>${config[1]}</span><span>${hasOverride(type) ? 'DIRECT TOTAL' : 'ITEM SUM'}</span></span>
+      <h3>${config[0]}</h3><strong>${fmt(value)}</strong><p>${config[3]}</p>
+      ${miniTiles(value, config[2], 32)}
+      <small>${amountDescription(value, 25)} · TUNE ↔</small>
+    </button>`;
+  }).join('');
+}
+
+function renderExpenses() {
+  $('#expenses').innerHTML = state.expenses.length ? state.expenses.map((item) => {
+    const timing = item.cadence === 'monthly' ? `monthly · day ${item.dueDay}` : `one-off · ${item.dueDate ? label(parse(item.dueDate)) : 'date needed'}`;
+    const color = E[item.type][1];
+    return `<button class="card c-${color}" ${targetAttrs({ k: 'expense', id: item.id })} type="button">
+      <span class="ctop"><span>${E[item.type][0]}</span><span>${timing}</span></span>
+      <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.amount)}</b>
+      ${miniTiles(item.amount, color)}
+      <span class="cmeta"><span>${amountDescription(item.amount, 25)}</span><span>${item.cadence === 'monthly' ? 'recurring pressure' : 'single impact'}</span></span><span class="hint">TAP TO TUNE ↔</span>
+    </button>`;
+  }).join('') : '<div class="empty">No obligations placed. Add rent, insurance, food/fuel, utilities, or one-off impact events.</div>';
+}
+
+function renderDebts() {
+  $('#debts').innerHTML = state.debts.length ? state.debts.map((item) => `<article class="card c-debt">
+    <span class="ctop"><span>DEBT DRAGON</span><span>${item.apr ? `${item.apr.toFixed(2)}% APR` : 'APR unspecified'}</span></span>
+    <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.balance)}</b>
+    ${miniTiles(item.balance, 'mass')}
+    <span class="cmeta"><span>${amountDescription(item.balance, 25)}</span><span>due day ${item.dueDay}</span></span>
+    <div class="dragonbuttons">
+      <button ${targetAttrs({ k: 'balance', id: item.id })} type="button">TUNE BODY<br>${fmt(item.balance)}</button>
+      <button ${targetAttrs({ k: 'minimum', id: item.id })} type="button">TUNE MINIMUM<br>${fmt(item.minPayment)}</button>
+    </div>
+  </article>`).join('') : '<div class="empty">No dragons placed. Add a debt account to make its full mass and monthly bite visible.</div>';
+}
+
+function renderDesires() {
+  $('#desires').innerHTML = state.desires.length ? state.desires.map((item) => {
+    const percentage = item.target ? clamp(item.saved / item.target * 100, 0, 100) : 0;
+    return `<button class="card c-invest" ${targetAttrs({ k: 'saved', id: item.id })} type="button">
+      <span class="ctop"><span>TRACKED DESIRE</span><span>${Math.round(percentage)}%</span></span>
+      <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.saved)} <small>/ ${fmt(item.target)}</small></b>
+      ${hollowTiles(item.saved, item.target)}
+      <span class="cmeta"><span>${esc(item.notes || 'A bounded place for something alive.')}</span></span><span class="hint">TAP TO TUNE ↔</span>
+    </button>`;
+  }).join('') : '<div class="empty">No sanctioned life tracks yet. Books, tools, toys, travel, food pleasures, and weirdness can all have a bounded address here.</div>';
+}
+
+function render() {
+  renderStatus();
+  renderBodyControls();
+  renderBody();
+  renderTime();
+  renderTerritories();
+  renderExpenses();
+  renderDebts();
+  renderDesires();
+  save();
+}
+
+function open(id) {
+  if (sheet && sheet !== id) close(sheet, false);
+  sheet = id;
+  const node = $(`#${id}`);
+  node.classList.add('open');
+  node.setAttribute('aria-hidden', 'false');
+  $('#backdrop').hidden = false;
+  document.body.classList.add('sheetopen');
+}
+
+function close(id = sheet, clear = true) {
+  if (!id) return;
+  const node = $(`#${id}`);
+  node.classList.remove('open');
+  node.setAttribute('aria-hidden', 'true');
+  if (clear && id === 'quickSheet') quick = null;
+  if (clear && id === 'daySheet') dayKey = null;
+  if (clear && id === 'editorSheet') editor = null;
+  if (sheet === id) sheet = null;
+  if (!sheet) {
+    $('#backdrop').hidden = true;
+    document.body.classList.remove('sheetopen');
+  }
+}
+
+function preview(value, color) {
+  const visual = visualUnits(value, 25);
+  const max = 180;
+  const parts = [];
+  for (let index = 0; index < Math.min(visual.full, max); index += 1) parts.push(`<i style="--c:${COLOR[color]};--fill:1"></i>`);
+  if (visual.full < max && visual.tail > 0) parts.push(`<i style="--c:${COLOR[color]};--fill:${visual.tail}"></i>`);
+  return parts.join('');
+}
+
+function syncQuick(value) {
+  qDraft = nn(value);
+  const info = meta(quick);
+  $('#quickInput').value = qDraft;
+  $('#quickReadout').textContent = fmt(qDraft);
+  $('#quickDialValue').textContent = `${fmt(qDraft)} · ${amountDescription(qDraft, 25)}`;
+  $('#quickPreview').innerHTML = preview(qDraft, info.color);
+}
+
+function openQuick(target) {
+  const info = meta(target);
+  if (!info) return;
+  quick = target;
+  $('#quickKicker').textContent = info.kicker;
+  $('#quickTitle').textContent = info.title;
+  $('#quickDesc').textContent = info.desc;
+  $('#quickExactLabel').textContent = info.label;
+  $('#quickStepMinus').textContent = fmt(tuneStep());
+  $('#quickStepPlus').textContent = fmt(tuneStep());
+  $('#quickInput').step = tuneStep();
+  $('#quickDetails').textContent = target.k === 'territory' ? 'ADD / DETAILS' : 'DETAILS';
+  const shown = isVisible(target);
+  $('#quickVisibility').textContent = shown ? 'HIDE FROM CONTINUOUS BODY' : 'SHOW IN CONTINUOUS BODY';
+  $('#quickVisibility').classList.toggle('on', shown);
+  syncQuick(get(target));
+  open('quickSheet');
+}
+
+function applyQuick() {
+  if (!quick) return;
+  set(quick, $('#quickInput').value);
+  close('quickSheet');
+  render();
+}
+
+function toggleVisibility(target) {
+  const id = segmentId(target);
+  if (state.settings.hiddenSegments[id]) delete state.settings.hiddenSegments[id];
+  else state.settings.hiddenSegments[id] = true;
+  state.isDemo = false;
+  render();
+  if (quick && segmentId(quick) === id) {
+    const shown = isVisible(target);
+    $('#quickVisibility').textContent = shown ? 'HIDE FROM CONTINUOUS BODY' : 'SHOW IN CONTINUOUS BODY';
+    $('#quickVisibility').classList.toggle('on', shown);
+  }
+}
+
+function details() {
+  if (!quick) return;
+  const target = quick;
+  close('quickSheet');
+  if (target.k === 'territory') edit('asset', null, { type: target.id });
+  else edit(meta(target).edit, target.id);
+}
+
+function syncDay(value) {
+  dayDraft = nn(value);
+  $('#dayInput').value = dayDraft;
+  $('#dayReadout').textContent = dayDraft ? fmt(dayDraft) : 'NO GOAL';
+  $('#dayDialValue').textContent = `${fmt(dayDraft)} · ${amountDescription(dayDraft, 25)}`;
+}
+
+function openDay(key) {
+  dayKey = key;
+  const date = parse(key);
+  $('#dayTitle').textContent = `${wk(date)} · ${label(date)}`;
+  $('#dayStepMinus').textContent = fmt(tuneStep());
+  $('#dayStepPlus').textContent = fmt(tuneStep());
+  $('#dayInput').step = tuneStep();
+  syncDay(state.calendarGoals[key] || 0);
+  const dayEvents = events().filter((event) => iso(event.date) === key);
+  $('#dayEvents').innerHTML = dayEvents.length ? dayEvents.map((event) => `<button class="dayevent ${event.kind}" data-edit="${event.source}" data-id="${event.id}" type="button"><span>${esc(event.name)} · ${esc(event.meta)}</span><b>${fmt(event.amount)}</b></button>`).join('') : '<p class="dayempty">No financial events on this day yet. That is an invitation, not an error.</p>';
+  open('daySheet');
+}
+
+function saveDay() {
+  if (!dayKey) return;
+  const value = nn($('#dayInput').value);
+  if (value) state.calendarGoals[dayKey] = value;
+  else delete state.calendarGoals[dayKey];
+  state.isDemo = false;
+  close('daySheet');
+  render();
+}
+
+function field(labelText, name, type = 'text', value = '', options = {}) {
+  const full = options.full ? 'full' : '';
+  const attrs = options.attrs || '';
+  if (type === 'select') {
+    return `<label class="${full}"><span>${labelText}</span><select name="${name}" ${attrs}>${options.choices.map(([key, text]) => `<option value="${key}" ${String(key) === String(value) ? 'selected' : ''}>${text}</option>`).join('')}</select></label>`;
+  }
+  if (type === 'textarea') return `<label class="${full}"><span>${labelText}</span><textarea name="${name}" ${attrs}>${esc(value)}</textarea></label>`;
+  return `<label class="${full}"><span>${labelText}</span><input type="${type}" name="${name}" value="${esc(value)}" ${attrs}/></label>`;
+}
+
+function record(type, id) {
+  const items = type === 'asset' ? state.assets : type === 'expense' ? state.expenses : type === 'debt' ? state.debts : state.desires;
+  return id ? items.find((item) => item.id === id) : null;
+}
+
+function edit(type, id = null, preset = {}) {
+  editor = { type, id, preset };
+  let item = record(type, id);
+  const title = { asset: 'money object', expense: 'obligation', debt: 'debt dragon', desire: 'sanctioned life track' }[type];
+  $('#editorKicker').textContent = id ? `EDIT ${title.toUpperCase()}` : `NEW ${title.toUpperCase()}`;
+  $('#editorTitle').textContent = id ? `Edit ${title}` : `Place a ${title}`;
+  $('#deleteBtn').hidden = !id;
+
+  let html = '';
+  if (type === 'asset') {
+    item = item || { name: '', type: preset.type || 'cash', amount: '', expectedDate: preset.expectedDate || '', confidence: 100, notes: '' };
+    html = field('Name', 'name', 'text', item.name, { full: true, attrs: 'required' })
+      + field('Liquidity territory', 'type', 'select', item.type, { choices: ORDER.map((entry) => [entry, A[entry][0]]) })
+      + field('Amount', 'amount', 'number', item.amount, { attrs: 'min="0" step="1" required' })
+      + field('Expected landing date', 'expectedDate', 'date', item.expectedDate)
+      + field('Pipeline confidence %', 'confidence', 'number', item.confidence, { attrs: 'min="0" max="100" step="1"' })
+      + field('Notes', 'notes', 'textarea', item.notes, { full: true });
+  }
+  if (type === 'expense') {
+    item = item || { name: '', amount: '', cadence: preset.cadence || 'monthly', type: preset.type || 'essential', dueDay: today().getDate(), dueDate: preset.dueDate || '', notes: '' };
+    html = field('Name', 'name', 'text', item.name, { full: true, attrs: 'required' })
+      + field('Amount', 'amount', 'number', item.amount, { attrs: 'min="0" step="1" required' })
+      + field('Category', 'type', 'select', item.type, { choices: Object.entries(E).map(([key, value]) => [key, value[0]]) })
+      + field('Cadence', 'cadence', 'select', item.cadence, { choices: [['monthly', 'Monthly recurring'], ['oneoff', 'One-off date']] })
+      + field('Monthly due day', 'dueDay', 'number', item.dueDay, { attrs: 'min="1" max="31" step="1"' })
+      + field('One-off due date', 'dueDate', 'date', item.dueDate, { full: true })
+      + field('Notes', 'notes', 'textarea', item.notes, { full: true });
+  }
+  if (type === 'debt') {
+    item = item || { name: '', balance: '', minPayment: '', dueDay: today().getDate(), apr: '', notes: '' };
+    html = field('Name', 'name', 'text', item.name, { full: true, attrs: 'required' })
+      + field('Current balance', 'balance', 'number', item.balance, { attrs: 'min="0" step="1" required' })
+      + field('Monthly minimum', 'minPayment', 'number', item.minPayment, { attrs: 'min="0" step="1" required' })
+      + field('Due day', 'dueDay', 'number', item.dueDay, { attrs: 'min="1" max="31" step="1"' })
+      + field('APR', 'apr', 'number', item.apr, { attrs: 'min="0" step="0.01"' })
+      + field('Notes', 'notes', 'textarea', item.notes, { full: true });
+  }
+  if (type === 'desire') {
+    item = item || { name: '', target: '', saved: '', notes: '' };
+    html = field('Name', 'name', 'text', item.name, { full: true, attrs: 'required' })
+      + field('Target amount', 'target', 'number', item.target, { attrs: 'min="0" step="1" required' })
+      + field('Already reserved', 'saved', 'number', item.saved, { attrs: 'min="0" step="1"' })
+      + field('Why this matters', 'notes', 'textarea', item.notes, { full: true });
+  }
+  $('#editorFields').innerHTML = html;
+  open('editorSheet');
+}
+
+function saveEdit(event) {
+  event.preventDefault();
+  if (!editor) return;
+  const { type, id } = editor;
+  const data = Object.fromEntries(new FormData($('#editorForm')).entries());
+  const old = record(type, id);
+  let item;
+  if (type === 'asset') item = { id: id || uid('a'), name: data.name.trim() || 'Untitled money', type: A[data.type] ? data.type : 'cash', amount: nn(data.amount), expectedDate: data.expectedDate || '', confidence: clamp(n(data.confidence, 100), 0, 100), notes: data.notes.trim() };
+  if (type === 'expense') item = { id: id || uid('e'), name: data.name.trim() || 'Untitled obligation', amount: nn(data.amount), cadence: data.cadence === 'oneoff' ? 'oneoff' : 'monthly', type: E[data.type] ? data.type : 'essential', dueDay: clamp(Math.round(n(data.dueDay, 1)), 1, 31), dueDate: data.dueDate || '', notes: data.notes.trim() };
+  if (type === 'debt') item = { id: id || uid('d'), name: data.name.trim() || 'Untitled dragon', balance: nn(data.balance), minPayment: nn(data.minPayment), dueDay: clamp(Math.round(n(data.dueDay, 1)), 1, 31), apr: nn(data.apr), notes: data.notes.trim() };
+  if (type === 'desire') item = { id: id || uid('l'), name: data.name.trim() || 'Untitled track', target: nn(data.target), saved: nn(data.saved), notes: data.notes.trim() };
+
+  const items = type === 'asset' ? state.assets : type === 'expense' ? state.expenses : type === 'debt' ? state.debts : state.desires;
+  const index = items.findIndex((entry) => entry.id === item.id);
+  if (index >= 0) items[index] = item;
+  else items.push(item);
+  if (type === 'asset') {
+    if (old?.type) delete state.territoryTotals[old.type];
+    delete state.territoryTotals[item.type];
+  }
+  state.isDemo = false;
+  close('editorSheet');
+  render();
+}
+
+function del() {
+  if (!editor?.id) return;
+  const item = record(editor.type, editor.id);
+  if (!item || !confirm(`Delete “${item.name}” from the board?`)) return;
+  const items = editor.type === 'asset' ? state.assets : editor.type === 'expense' ? state.expenses : editor.type === 'debt' ? state.debts : state.desires;
+  items.splice(items.findIndex((entry) => entry.id === item.id), 1);
+  if (editor.type === 'asset') delete state.territoryTotals[item.type];
+  state.isDemo = false;
+  close('editorSheet');
+  render();
+}
+
+function settings() {
+  $('#taskPayoutInput').value = state.settings.taskPayout;
+  $('#cellQuantumInput').value = quantum();
+  $('#horizonInput').value = state.settings.forecastDays;
+  $('#bodyModeInput').value = state.settings.bodyMode;
+  open('settingsSheet');
+}
+
+function saveSettings(event) {
+  event.preventDefault();
+  state.settings.taskPayout = nn($('#taskPayoutInput').value);
+  state.settings.cellQuantum = Number($('#cellQuantumInput').value) === 100 ? 100 : 25;
+  state.settings.forecastDays = clamp(Math.round(n($('#horizonInput').value, 28) / 7) * 7, 14, 84);
+  state.settings.bodyMode = $('#bodyModeInput').value === 'exploded' ? 'exploded' : 'flow';
+  state.isDemo = false;
+  close('settingsSheet');
+  render();
+}
+
+function exportBoard() {
+  const blob = new Blob([JSON.stringify({ app: 'CHUNK // SOLVENCY', version: VERSION, exportedAt: new Date().toISOString(), state }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `chunk-solvency-backup-${iso(today())}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importBoard(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = JSON.parse(reader.result);
+      state = normalize(imported.state || imported);
+      state.isDemo = false;
+      render();
+      alert('Board imported. This browser now holds the imported local board.');
+    } catch (error) {
+      alert('That file was not a valid CHUNK board backup.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function begin(event, type) {
+  event.preventDefault();
+  drag = { type, x: event.clientX };
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+}
+
+function move(event) {
+  if (!drag) return;
+  event.preventDefault();
+  const steps = Math.trunc((event.clientX - drag.x) / 18);
+  if (!steps) return;
+  drag.x += steps * 18;
+  if (drag.type === 'q') syncQuick(qDraft + steps * tuneStep());
+  else syncDay(dayDraft + steps * tuneStep());
+}
+
+function end() { drag = null; }
+
+function click(event) {
+  let node = event.target.closest('[data-close]');
+  if (node) { close(node.dataset.close); return; }
+
+  node = event.target.closest('[data-visible]');
+  if (node) {
+    const [kind, id] = node.dataset.visible.split(':');
+    toggleVisibility({ k: kind, id });
+    return;
+  }
+
+  node = event.target.closest('[data-add]');
+  if (node) { edit(node.dataset.add); return; }
+
+  node = event.target.closest('[data-day]');
+  if (node) { openDay(node.dataset.day); return; }
+
+  node = event.target.closest('[data-edit]');
+  if (node) { close('daySheet'); edit(node.dataset.edit, node.dataset.id); return; }
+
+  node = event.target.closest('[data-k]');
+  if (node) { openQuick({ k: node.dataset.k, id: node.dataset.id }); }
+}
+
+function keys(event) {
+  if (event.key === 'Escape') close();
+  if (event.target === $('#quickDial')) {
+    if (event.key === 'ArrowLeft') syncQuick(qDraft - tuneStep());
+    if (event.key === 'ArrowRight') syncQuick(qDraft + tuneStep());
+  }
+  if (event.target === $('#dayDial')) {
+    if (event.key === 'ArrowLeft') syncDay(dayDraft - tuneStep());
+    if (event.key === 'ArrowRight') syncDay(dayDraft + tuneStep());
+  }
+}
+
+function init() {
+  $('#exportBtn').onclick = exportBoard;
+  $('#importBtn').onclick = () => $('#importInput').click();
+  $('#importInput').onchange = (event) => importBoard(event.target.files[0]);
+  $('#settingsBtn').onclick = settings;
+  $('#taskBtn').onclick = settings;
+  $('#cleanBtn').onclick = () => { if (confirm('Start a clean board?')) { state = blank(); render(); } };
+  $('#loadDemoBtn').onclick = () => { if (confirm('Replace this local board with demo terrain? Export first if you want a backup.')) { state = demo(); render(); } };
+  $('#resetBtn').onclick = () => { if (confirm('Erase all local board data?')) { state = blank(); render(); } };
+
+  $('#bodyAddBtn').onclick = () => edit($('#bodyAddType').value);
+  $$('[data-quantum]').forEach((button) => {
+    button.onclick = () => { state.settings.cellQuantum = Number(button.dataset.quantum) === 100 ? 100 : 25; state.isDemo = false; render(); };
+  });
+  $$('[data-bodymode]').forEach((button) => {
+    button.onclick = () => { state.settings.bodyMode = button.dataset.bodymode === 'exploded' ? 'exploded' : 'flow'; state.isDemo = false; render(); };
+  });
+
+  $('#quickInput').oninput = (event) => syncQuick(event.target.value);
+  $('#quickMinus').onclick = () => syncQuick(qDraft - tuneStep());
+  $('#quickPlus').onclick = () => syncQuick(qDraft + tuneStep());
+  $('#quickApply').onclick = applyQuick;
+  $('#quickDetails').onclick = details;
+  $('#quickVisibility').onclick = () => { if (quick) toggleVisibility(quick); };
+
+  $('#dayInput').oninput = (event) => syncDay(event.target.value);
+  $('#dayMinus').onclick = () => syncDay(dayDraft - tuneStep());
+  $('#dayPlus').onclick = () => syncDay(dayDraft + tuneStep());
+  $('#clearGoal').onclick = () => syncDay(0);
+  $('#saveDay').onclick = saveDay;
+  $('#addIncomeDay').onclick = () => { const key = dayKey; close('daySheet'); edit('asset', null, { type: 'pipeline', expectedDate: key }); };
+  $('#addExpenseDay').onclick = () => { const key = dayKey; close('daySheet'); edit('expense', null, { cadence: 'oneoff', dueDate: key }); };
+
+  $('#editorForm').onsubmit = saveEdit;
+  $('#deleteBtn').onclick = del;
+  $('#settingsForm').onsubmit = saveSettings;
+  $('#backdrop').onclick = () => close();
+  $('#quickDial').onpointerdown = (event) => begin(event, 'q');
+  $('#dayDial').onpointerdown = (event) => begin(event, 'd');
+  window.addEventListener('pointermove', move, { passive: false });
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+  document.addEventListener('click', click);
+  document.addEventListener('keydown', keys);
+  document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  }
+  render();
+}
+
+state = load();
+document.addEventListener('DOMContentLoaded', init);
