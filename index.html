@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Chunk" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css?v=0.8" />
-  <title>CHUNK // SOLVENCY v0.8</title>
+  <link rel="stylesheet" href="styles.css?v=0.9" />
+  <title>CHUNK // SOLVENCY v0.9</title>
 </head>
 <body>
   <div class="grain"></div>
@@ -29,9 +29,6 @@
       </div>
     </header>
 
-    <section class="demo" id="demoBanner" hidden>
-      <span><b>DEMO TERRAIN LOADED.</b> The numbers are fake. The logic is real. Reset / demo controls now live inside Board settings.</span>
-    </section>
 
     <section class="status">
       <div class="pressure">
@@ -72,55 +69,59 @@
         <aside><span>RESOLUTION</span><strong id="quantum">—</strong></aside>
       </header>
 
-      <p class="instruction"><i></i><b>TAP ANY COLOR</b> to tune it. In / Out is the macro read: full cells stay in order, then each category keeps its own colored partial tail as a solid, proportional block at the far end of its side.</p>
-
-      <section class="flowcontrols" aria-label="Continuous body controls">
-        <div class="resolutioncontrol">
-          <span class="micro">CELL QUANTUM</span>
-          <div class="segmented" role="group" aria-label="Cell quantum">
-            <button type="button" data-quantum="25">$25 / CELL</button>
-            <button type="button" data-quantum="100">$100 / CELL</button>
-          </div>
-        </div>
-        <div class="viewcontrol">
-          <span class="micro">BODY VIEW</span>
-          <div class="segmented tri" role="group" aria-label="Body view">
-            <button type="button" data-bodymode="ledger">IN / OUT</button>
-            <button type="button" data-bodymode="flow">DETAILED</button>
-            <button type="button" data-bodymode="exploded">EXPLODED</button>
-          </div>
-        </div>
-        <div class="tailcontrol">
-          <span class="micro">TAIL LAYOUT</span>
-          <div class="segmented" role="group" aria-label="Tail behavior">
-            <button type="button" data-tailmode="stacked">PACK AT END</button>
-            <button type="button" data-tailmode="inline">KEEP INLINE</button>
-          </div>
-        </div>
-        <div class="cardcontrol">
-          <span class="micro">CARD EVIDENCE</span>
-          <div class="segmented" role="group" aria-label="Card evidence density">
-            <button type="button" data-cardmode="exact">EXACT</button>
-            <button type="button" data-cardmode="compact">TIGHT</button>
-          </div>
-        </div>
-        <div class="addcontrol">
-          <label>
-            <span class="micro">PLACE A TYPE</span>
-            <select id="bodyAddType" aria-label="Type to place on board">
-              <option value="asset">MONEY OBJECT</option>
-              <option value="expense">OBLIGATION</option>
-              <option value="debt">DEBT DRAGON</option>
-              <option value="desire">LIFE TRACK</option>
-            </select>
-          </label>
-          <button id="bodyAddBtn" type="button">+ PLACE</button>
-        </div>
-      </section>
-
-      <div id="flowMap" class="flowmap" aria-label="Continuous body tuning key"></div>
-      <div id="bodyFrame" class="bodyframe"><div id="bodyGrid" class="bodygrid"></div></div>
+      <div id="bodyFrame" class="bodyframe bodyfirst"><div id="bodyGrid" class="bodygrid"></div></div>
       <p id="bodyCaption" class="caption">The Body is canonical: every value is represented. The cards below are compact dossiers, not a replacement for the real mass.</p>
+
+      <div class="bodyworkbench">
+        <p class="instruction"><i></i><b>TAP ANY COLOR</b> to tune it. In / Out is the macro read: full cells stay in order, then each category keeps its own colored partial tail as a solid, proportional block at the far end of its side.</p>
+
+        <section class="flowcontrols" aria-label="Continuous body controls">
+          <div class="resolutioncontrol">
+            <span class="micro">CELL QUANTUM</span>
+            <div class="segmented" role="group" aria-label="Cell quantum">
+              <button type="button" data-quantum="25">$25 / CELL</button>
+              <button type="button" data-quantum="100">$100 / CELL</button>
+            </div>
+          </div>
+          <div class="viewcontrol">
+            <span class="micro">BODY VIEW</span>
+            <div class="segmented tri" role="group" aria-label="Body view">
+              <button type="button" data-bodymode="ledger">IN / OUT</button>
+              <button type="button" data-bodymode="flow">DETAILED</button>
+              <button type="button" data-bodymode="exploded">EXPLODED</button>
+            </div>
+          </div>
+          <div class="tailcontrol">
+            <span class="micro">TAIL LAYOUT</span>
+            <div class="segmented" role="group" aria-label="Tail behavior">
+              <button type="button" data-tailmode="stacked">PACK AT END</button>
+              <button type="button" data-tailmode="inline">KEEP INLINE</button>
+            </div>
+          </div>
+          <div class="cardcontrol">
+            <span class="micro">CARD EVIDENCE</span>
+            <div class="segmented" role="group" aria-label="Card evidence density">
+              <button type="button" data-cardmode="exact">EXACT</button>
+              <button type="button" data-cardmode="compact">TIGHT</button>
+            </div>
+          </div>
+          <div class="addcontrol">
+            <label>
+              <span class="micro">PLACE A TYPE</span>
+              <select id="bodyAddType" aria-label="Type to place on board">
+                <option value="asset">MONEY OBJECT</option>
+                <option value="expense">OBLIGATION</option>
+                <option value="debt">DEBT DRAGON</option>
+                <option value="desire">LIFE TRACK</option>
+              </select>
+            </label>
+            <button id="bodyAddBtn" type="button">+ PLACE</button>
+          </div>
+        </section>
+
+        <div class="keyhead"><span class="micro">CONTINUOUS BODY TUNING KEY</span><small>Use the grip to drag on desktop; ↑ / ↓ works everywhere. Layers only reorder within IN or within OUT.</small></div>
+        <div id="flowMap" class="flowmap" aria-label="Continuous body tuning key"></div>
+      </div>
     </section>
 
     <section id="time" class="section">
@@ -194,6 +195,7 @@
       <label class="numberfield"><span>TYPE A VALUE</span><input id="quickInput" type="number" min="0" step="1" inputmode="decimal" /></label>
       <div class="dialrow"><button id="quickMinus" type="button">− <span id="quickStepMinus">$25</span></button><div id="quickDial" class="dial" tabindex="0"><span>←</span><b id="quickDialValue">DRAG</b><span>→</span><small>SLIDE LEFT / RIGHT · $25 TUNE STEPS</small></div><button id="quickPlus" type="button">+ <span id="quickStepPlus">$25</span></button></div>
       <div id="quickPreview" class="preview"></div>
+      <label class="quickcolor"><span>SEGMENT COLOR</span><input id="quickColorInput" type="color" value="#5be2aa" aria-label="Color for this segment" /><small>Changes create or update the active custom profile.</small></label>
       <button id="quickVisibility" class="visibilitywide" type="button">HIDE FROM CONTINUOUS BODY</button>
     </div>
     <footer><button id="quickDetails" type="button">DETAILS</button><i></i><button id="quickApply" class="primary" type="button">APPLY TO BOARD</button></footer>
@@ -232,8 +234,14 @@
         <label class="full"><span>Default body view</span><select id="bodyModeInput"><option value="ledger">In / Out ledger</option><option value="flow">Detailed continuous flow</option><option value="exploded">Exploded territories</option></select></label>
         <label class="full"><span>Default tail behavior</span><select id="tailModeInput"><option value="stacked">Stack each category’s own tail at the side end</option><option value="inline">Keep every tail inline</option></select></label>
         <label class="full"><span>Card evidence density</span><select id="cardModeInput"><option value="exact">Exact maps (expand cards for large amounts)</option><option value="compact">Tight maps (cap visual cells)</option></select></label>
-        <label class="full"><span>Colorway / board mood</span><select id="colorwayInput"><option value="spectrum">Flow spectrum — cool IN / warm OUT</option><option value="midnight">Midnight signal — saturated night neon</option><option value="marker">Markerboard — muted physical inks</option></select></label>
-        <p class="full">Flow spectrum keeps IN in the cool range: indigo hard assets, violet pipeline, green true cash, cyan buffer, blue investments. OUT starts yellow at immediate impact, heats through orange, and reaches red dragon mass.</p>
+        <label class="full"><span>Colorway / board mood</span><select id="colorwayInput"><option value="spectrum">Flow spectrum — cool IN / warm OUT</option><option value="midnight">Midnight signal — saturated night neon</option><option value="marker">Markerboard — muted physical inks</option><option value="custom">Custom profile — every major category editable</option></select></label>
+        <p class="full">Flow spectrum runs cool toward true cash and warm toward the wall / dragons. Choose Custom to tune every distinct visual variable: each liquidity class, all expense pressure, life tracks, dragon body, and dragon minimum.</p>
+        <section class="palettepanel full" aria-label="Custom palette controls">
+          <div class="palettepanelhead"><div><span class="micro">CUSTOM PROFILE LAB</span><p>Build a named palette from any base, then tune individual category colors here or directly from a selected Body segment.</p></div><button id="paletteNewBtn" type="button">NEW FROM CURRENT</button></div>
+          <label class="full"><span>Active custom profile</span><select id="customProfileInput"></select></label>
+          <label class="full"><span>Custom profile name</span><input id="customProfileNameInput" type="text" maxlength="40" placeholder="Custom flow" /></label>
+          <div id="paletteGrid" class="palettegrid"></div>
+        </section>
         <section class="resettools full" aria-label="Board reset tools">
           <span class="micro">LOCAL BOARD TOOLS</span>
           <p>These actions affect only this browser’s saved board. Export first when the data matters.</p>
@@ -244,6 +252,6 @@
     </form>
   </aside>
 
-  <script src="app.js?v=0.8"></script>
+  <script src="app.js?v=0.9"></script>
 </body>
 </html>

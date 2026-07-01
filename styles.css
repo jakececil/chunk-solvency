@@ -183,3 +183,43 @@ body{background:radial-gradient(circle at 14% -8%,color-mix(in srgb,var(--cash) 
   #settingsSheet .fields{padding-bottom:6px}
   .resettools>div{grid-template-columns:1fr}
 }
+
+/* v0.9: palette laboratory, movable layer key, Body first */
+:root{--life:#8d91ff}
+html[data-colorway="spectrum"]{--life:#8d91ff}
+html[data-colorway="midnight"]{--life:#8979ff}
+html[data-colorway="marker"]{--life:#8173ae}
+.c-life{color:var(--life)}
+.bodyfirst{margin-top:4px}
+.bodyworkbench{margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
+.keyhead{display:flex;align-items:baseline;justify-content:space-between;gap:18px;margin:17px 0 8px}
+.keyhead small{max-width:580px;color:var(--dim);font-size:9px;line-height:1.45;text-align:right}
+.flowmap{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mapitem{grid-template-columns:minmax(0,1fr) 62px;position:relative;min-height:66px}
+.mapactions{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 14px;border-left:1px solid var(--line);min-width:0;background:rgba(0,0,0,.16)}
+.mapactions button{min-width:0;border:0;background:transparent;color:var(--dim);font-size:10px;line-height:1;letter-spacing:.03em}
+.mapactions .visToggle{grid-column:1/-1;border-bottom:1px solid var(--line);font-size:7px}
+.mapactions .reorder{border-right:1px solid var(--line);font-size:13px}
+.mapactions .reorder:last-of-type{border-right:0}
+.mapactions button:hover{background:rgba(255,255,255,.11);color:var(--ink)}
+.draggrip{grid-column:1/-1;display:grid;place-items:center;border-top:1px solid var(--line);color:currentColor;font-size:16px;line-height:.65;letter-spacing:-.25em;opacity:.52;cursor:grab}
+.mapitem.dragging{opacity:.34;filter:saturate(.55)}
+.mapitem.dropready{box-shadow:inset 0 0 0 2px var(--lime),0 0 15px rgba(215,232,132,.18)}
+.quickcolor{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px;margin:11px 0;border:1px solid var(--line);background:rgba(0,0,0,.2);padding:9px 10px;color:var(--dim);font-size:9px;letter-spacing:.09em}
+.quickcolor input[type="color"]{width:42px;height:30px;border:1px solid var(--strong);border-radius:0;background:transparent;padding:2px;cursor:pointer}
+.quickcolor small{grid-column:1/-1;color:var(--mute);font-size:8px;letter-spacing:0;line-height:1.35}
+.palettepanel{display:grid;gap:9px;border-top:1px solid var(--line);padding-top:15px}
+.palettepanelhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.palettepanelhead p{margin:5px 0 0;color:var(--dim);font-size:9px;line-height:1.45}
+.palettepanelhead button{flex:0 0 auto;min-height:38px;border:1px solid rgba(215,232,132,.55);background:rgba(215,232,132,.06);padding:8px 9px;color:var(--lime);font-size:8px;letter-spacing:.08em}
+.palettegrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.paletteitem{display:flex!important;align-items:center;justify-content:space-between;gap:8px;min-width:0;border:1px solid var(--line);background:rgba(0,0,0,.16);padding:7px 8px!important}
+.paletteitem>span{display:flex;align-items:center;gap:7px;min-width:0;color:var(--dim);font-size:8px!important;letter-spacing:.07em!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.paletteitem>span i{width:12px;height:12px;flex:0 0 12px;border:1px solid rgba(255,255,255,.6);box-shadow:0 0 9px currentColor}
+.paletteitem input[type="color"]{width:31px;height:24px;flex:0 0 31px;border:1px solid var(--strong);border-radius:0;background:transparent;padding:1px;cursor:pointer}
+.palettegrid.locked{opacity:.44;filter:saturate(.42)}
+.palettegrid.locked .paletteitem{cursor:not-allowed}
+.fields input[type="date"]{display:block;width:100%;min-width:0;max-width:100%;min-height:42px}
+#editorSheet .fields input[type="date"]{min-width:0;max-width:100%}
+@media(max-width:900px){.flowmap{grid-template-columns:repeat(2,minmax(0,1fr))}.keyhead{align-items:flex-start;flex-direction:column;gap:5px}.keyhead small{text-align:left}.palettegrid{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.bodyworkbench{margin-top:18px;padding-top:14px}.flowmap{grid-template-columns:1fr}.mapitem{min-height:62px}.palettegrid{grid-template-columns:1fr}.palettepanelhead{align-items:stretch;flex-direction:column}.palettepanelhead button{width:100%}.quickcolor{margin-top:9px}.fields input[type="date"]{font-size:16px}}

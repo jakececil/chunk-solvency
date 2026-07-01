@@ -1,6 +1,6 @@
-const VERSION = 9;
-const KEY = 'chunk-solvency-v9';
-const OLD_KEYS = ['chunk-solvency-v8', 'chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
+const VERSION = 10;
+const KEY = 'chunk-solvency-v10';
+const OLD_KEYS = ['chunk-solvency-v9', 'chunk-solvency-v8', 'chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
 
 const A = {
   hardAsset: ['Hard assets', 'HARD ASSET', 'hard', 'Sellable possessions. Least liquid.'],
@@ -17,8 +17,20 @@ const E = {
 };
 const COLOR = {
   hard: 'var(--hard)', pipeline: 'var(--pipe)', cash: 'var(--cash)', buffer: 'var(--buffer)',
-  invest: 'var(--invest)', ess: 'var(--ess)', flex: 'var(--flex)', one: 'var(--one)',
+  invest: 'var(--invest)', life: 'var(--life)', ess: 'var(--ess)', flex: 'var(--flex)', one: 'var(--one)',
   debt: 'var(--debt)', mass: 'var(--mass)'
+};
+
+const PALETTE_KEYS = ['hard', 'pipeline', 'cash', 'buffer', 'invest', 'life', 'one', 'flex', 'ess', 'debt', 'mass'];
+const PALETTE_LABELS = {
+  hard: 'Hard assets', pipeline: 'Pipeline', cash: 'True cash', buffer: 'Protected buffer',
+  invest: 'Investments', life: 'Sanctioned life', one: 'One-off impact', flex: 'Variable / flexible',
+  ess: 'Fixed / essential', debt: 'Debt minimum', mass: 'Debt body mass'
+};
+const PALETTES = {
+  spectrum: { hard: '#6087f6', pipeline: '#a97cff', cash: '#5be2aa', buffer: '#54d4ca', invest: '#58baf3', life: '#8d91ff', one: '#f2d760', flex: '#ffbf69', ess: '#ff8c63', debt: '#ff5e5e', mass: '#ff4e78' },
+  midnight: { hard: '#4877ff', pipeline: '#ba63ff', cash: '#47f2a3', buffer: '#3de0d2', invest: '#3fa8ff', life: '#8979ff', one: '#fff05c', flex: '#ffb04f', ess: '#ff764e', debt: '#ff4758', mass: '#ff3b71' },
+  marker: { hard: '#6a86c6', pipeline: '#9a75c1', cash: '#70bd93', buffer: '#6cafb0', invest: '#6a9cbf', life: '#8173ae', one: '#d9c766', flex: '#d69a62', ess: '#c9785e', debt: '#c75d61', mass: '#c15c7c' }
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -67,6 +79,8 @@ let earnedDraft = 0;
 let editor = null;
 let sheet = null;
 let drag = null;
+let quickColorKey = null;
+let draggedLayer = null;
 
 function blank() {
   return {
@@ -80,8 +94,11 @@ function blank() {
       tailMode: 'stacked',
       cardMode: 'exact',
       colorway: 'spectrum',
+      customProfiles: [],
+      customProfileId: '',
       cycleDeadline: nextCycleISO(),
-      hiddenSegments: {}
+      hiddenSegments: {},
+      segmentOrder: { in: [], out: [] }
     },
     territoryTotals: {},
     calendarGoals: {},
@@ -98,7 +115,7 @@ function demo() {
   return {
     version: VERSION,
     isDemo: true,
-    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', colorway: 'spectrum', cycleDeadline: nextCycleISO(), hiddenSegments: {} },
+    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', colorway: 'spectrum', customProfiles: [], customProfileId: '', cycleDeadline: nextCycleISO(), hiddenSegments: {}, segmentOrder: { in: [], out: [] } },
     territoryTotals: {},
     calendarGoals: {},
     earningsLog: {},
@@ -125,6 +142,27 @@ function demo() {
   };
 }
 
+function validHex(value) { return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value).toLowerCase() : ''; }
+function sanitizeColors(input, fallback = PALETTES.spectrum) {
+  const output = {};
+  PALETTE_KEYS.forEach((key) => { output[key] = validHex(input?.[key]) || fallback[key]; });
+  return output;
+}
+function normalizeProfiles(source) {
+  const raw = Array.isArray(source?.settings?.customProfiles) ? source.settings.customProfiles : [];
+  const profiles = raw.map((profile, index) => ({
+    id: String(profile?.id || `custom-${index + 1}`),
+    name: String(profile?.name || `Custom flow ${index + 1}`).slice(0, 40),
+    colors: sanitizeColors(profile?.colors, PALETTES.spectrum)
+  })).filter((profile, index, list) => list.findIndex((entry) => entry.id === profile.id) === index);
+  const legacy = source?.settings?.customColors;
+  if (!profiles.length) profiles.push({
+    id: 'custom-flow',
+    name: String(source?.settings?.customPaletteName || 'Custom flow').slice(0, 40),
+    colors: sanitizeColors(legacy, PALETTES.spectrum)
+  });
+  return profiles;
+}
 function normalize(input) {
   const source = input && typeof input === 'object' ? input : blank();
   const territoryTotals = {};
@@ -133,6 +171,11 @@ function normalize(input) {
   const hiddenSegments = source.settings?.hiddenSegments && typeof source.settings.hiddenSegments === 'object'
     ? source.settings.hiddenSegments
     : {};
+  const rawOrder = source.settings?.segmentOrder && typeof source.settings.segmentOrder === 'object' ? source.settings.segmentOrder : {};
+  const segmentOrder = {
+    in: Array.isArray(rawOrder.in) ? rawOrder.in.map(String) : [],
+    out: Array.isArray(rawOrder.out) ? rawOrder.out.map(String) : []
+  };
 
   ORDER.forEach((type) => {
     if (Number.isFinite(Number(source.territoryTotals?.[type])) && Number(source.territoryTotals[type]) >= 0) {
@@ -153,7 +196,10 @@ function normalize(input) {
   const cellQuantum = Number(migratedQuantum) === 100 ? 100 : 25;
   const cycleDeadline = safeCycleISO(source.settings?.cycleDeadline);
   const cardMode = source.settings?.cardMode === 'compact' ? 'compact' : 'exact';
-  const colorway = ['spectrum', 'midnight', 'marker'].includes(source.settings?.colorway) ? source.settings.colorway : 'spectrum';
+  const colorway = ['spectrum', 'midnight', 'marker', 'custom'].includes(source.settings?.colorway) ? source.settings.colorway : 'spectrum';
+  const customProfiles = normalizeProfiles(source);
+  const requestedProfile = String(source.settings?.customProfileId || '');
+  const customProfileId = customProfiles.some((profile) => profile.id === requestedProfile) ? requestedProfile : customProfiles[0].id;
 
   return {
     version: VERSION,
@@ -166,8 +212,11 @@ function normalize(input) {
       tailMode: legacyBeforeSeven ? 'stacked' : (source.settings?.tailMode === 'inline' ? 'inline' : 'stacked'),
       cardMode,
       colorway,
+      customProfiles,
+      customProfileId,
       cycleDeadline,
-      hiddenSegments: Object.fromEntries(Object.entries(hiddenSegments).filter(([, hidden]) => !!hidden))
+      hiddenSegments: Object.fromEntries(Object.entries(hiddenSegments).filter(([, hidden]) => !!hidden)),
+      segmentOrder
     },
     territoryTotals,
     calendarGoals,
@@ -190,7 +239,6 @@ function normalize(input) {
     }))
   };
 }
-
 function load() {
   try {
     let saved = localStorage.getItem(KEY);
@@ -224,8 +272,44 @@ const minTotal = () => sum(state.debts, 'minPayment');
 const expenseTotal = () => sum(state.expenses.filter((item) => item.cadence === 'monthly'), 'amount');
 const wall = () => expenseTotal() + minTotal();
 const quantum = () => state.settings.cellQuantum === 100 ? 100 : 25;
-const applyColorway = () => {
-  document.documentElement.dataset.colorway = state.settings.colorway || 'spectrum';
+function activeCustomProfile() {
+  let profile = (state.settings.customProfiles || []).find((entry) => entry.id === state.settings.customProfileId);
+  if (!profile) {
+    profile = { id: uid('palette'), name: 'Custom flow', colors: { ...PALETTES.spectrum } };
+    (state.settings.customProfiles ??= []).push(profile);
+    state.settings.customProfileId = profile.id;
+  }
+  profile.colors = sanitizeColors(profile.colors, PALETTES.spectrum);
+  return profile;
+}
+function paletteFor(mode = state.settings.colorway, profileId = state.settings.customProfileId) {
+  if (mode === 'custom') {
+    const profile = (state.settings.customProfiles || []).find((entry) => entry.id === profileId) || activeCustomProfile();
+    return sanitizeColors(profile.colors, PALETTES.spectrum);
+  }
+  return { ...PALETTES[mode] || PALETTES.spectrum };
+}
+function resolvedColor(key) { return paletteFor()[key] || PALETTES.spectrum[key] || '#ffffff'; }
+function ensureCustomFrom(mode = state.settings.colorway) {
+  const profile = activeCustomProfile();
+  if (state.settings.colorway !== 'custom') profile.colors = paletteFor(mode);
+  state.settings.colorway = 'custom';
+  return profile;
+}
+function setCustomColor(key, color) {
+  const next = validHex(color);
+  if (!PALETTE_KEYS.includes(key) || !next) return;
+  const profile = ensureCustomFrom(state.settings.colorway);
+  profile.colors[key] = next;
+  applyColorway();
+  save();
+}
+function applyColorway() {
+  const root = document.documentElement;
+  const mode = state.settings.colorway || 'spectrum';
+  const colors = paletteFor(mode);
+  root.dataset.colorway = mode;
+  PALETTE_KEYS.forEach((key) => root.style.setProperty(`--${key}`, colors[key]));
 };
 const updateScrollTone = () => {
   const root = document.documentElement;
@@ -382,7 +466,7 @@ function meta(target) {
   }
   if (target.k === 'saved') {
     const item = state.desires.find((entry) => entry.id === target.id);
-    return item && { title: item.name, kicker: 'SANCTIONED LIFE TRACK', desc: 'Adjust the amount already set aside. The target remains intact.', color: 'invest', label: 'AMOUNT RESERVED', edit: 'desire' };
+    return item && { title: item.name, kicker: 'SANCTIONED LIFE TRACK', desc: 'Adjust the amount already set aside. The target remains intact.', color: 'life', label: 'AMOUNT RESERVED', edit: 'desire' };
   }
   return null;
 }
@@ -418,18 +502,48 @@ function set(target, value) {
   state.isDemo = false;
 }
 
-function segments() {
-  const output = [];
-  ORDER.forEach((type) => output.push({ name: A[type][0], short: A[type][1], amount: total(type), color: A[type][2], target: { k: 'territory', id: type }, kind: 'territory', side: 'in' }));
-  state.desires.forEach((item) => output.push({ name: item.name, short: 'SANCTIONED LIFE', amount: item.saved, targetAmount: item.target, color: 'invest', target: { k: 'saved', id: item.id }, kind: 'life', side: 'out' }));
-  state.expenses.forEach((item) => output.push({ name: item.name, short: E[item.type][0], amount: item.amount, color: E[item.type][1], target: { k: 'expense', id: item.id }, kind: 'expense', side: 'out' }));
-  state.debts.forEach((item) => {
-    output.push({ name: `${item.name} minimum`, short: 'MIN BITE', amount: item.minPayment, color: 'debt', target: { k: 'minimum', id: item.id }, kind: 'minimum', side: 'out' });
-    output.push({ name: `${item.name} body`, short: 'DRAGON MASS', amount: item.balance, color: 'mass', target: { k: 'balance', id: item.id }, kind: 'balance', side: 'out' });
-  });
-  return output;
+function sortSideSegments(list, side) {
+  const current = list.map((segment) => segmentId(segment.target));
+  const saved = Array.isArray(state.settings.segmentOrder?.[side]) ? state.settings.segmentOrder[side].filter((id) => current.includes(id)) : [];
+  const orderedIds = [...saved, ...current.filter((id) => !saved.includes(id))];
+  state.settings.segmentOrder ??= { in: [], out: [] };
+  state.settings.segmentOrder[side] = orderedIds;
+  const lookup = new Map(list.map((segment) => [segmentId(segment.target), segment]));
+  return orderedIds.map((id) => lookup.get(id)).filter(Boolean);
 }
-
+function segments() {
+  const input = [];
+  ORDER.forEach((type) => input.push({ name: A[type][0], short: A[type][1], amount: total(type), color: A[type][2], target: { k: 'territory', id: type }, kind: 'territory', side: 'in' }));
+  state.desires.forEach((item) => input.push({ name: item.name, short: 'SANCTIONED LIFE', amount: item.saved, targetAmount: item.target, color: 'life', target: { k: 'saved', id: item.id }, kind: 'life', side: 'out' }));
+  state.expenses.forEach((item) => input.push({ name: item.name, short: E[item.type][0], amount: item.amount, color: E[item.type][1], target: { k: 'expense', id: item.id }, kind: 'expense', side: 'out' }));
+  state.debts.forEach((item) => {
+    input.push({ name: `${item.name} minimum`, short: 'MIN BITE', amount: item.minPayment, color: 'debt', target: { k: 'minimum', id: item.id }, kind: 'minimum', side: 'out' });
+    input.push({ name: `${item.name} body`, short: 'DRAGON MASS', amount: item.balance, color: 'mass', target: { k: 'balance', id: item.id }, kind: 'balance', side: 'out' });
+  });
+  return [...sortSideSegments(input.filter((segment) => segment.side === 'in'), 'in'), ...sortSideSegments(input.filter((segment) => segment.side === 'out'), 'out')];
+}
+function moveSegment(id, side, delta) {
+  const ids = [...(state.settings.segmentOrder?.[side] || [])];
+  const index = ids.indexOf(id);
+  const next = index + Number(delta);
+  if (index < 0 || next < 0 || next >= ids.length) return;
+  [ids[index], ids[next]] = [ids[next], ids[index]];
+  state.settings.segmentOrder[side] = ids;
+  state.isDemo = false;
+  render();
+}
+function moveSegmentTo(id, side, targetId) {
+  if (!id || !targetId || id === targetId) return;
+  const ids = [...(state.settings.segmentOrder?.[side] || [])];
+  const from = ids.indexOf(id);
+  const to = ids.indexOf(targetId);
+  if (from < 0 || to < 0) return;
+  ids.splice(from, 1);
+  ids.splice(to, 0, id);
+  state.settings.segmentOrder[side] = ids;
+  state.isDemo = false;
+  render();
+}
 function visualUnits(amount, unit = quantum()) {
   const safe = nn(amount);
   const full = Math.floor(safe / unit);
@@ -552,7 +666,6 @@ function renderStatus() {
     else verdict = 'No recurring wall is defined yet. Place obligations before asking the board to forecast survival.';
   }
   $('#verdict').textContent = verdict;
-  $('#demoBanner').hidden = !state.isDemo;
   renderCampaign(c);
 }
 
@@ -606,10 +719,16 @@ function renderBody() {
   $('#flowMap').innerHTML = allSegments.map((segment) => {
     const shown = isVisible(segment.target);
     const target = segment.target;
+    const id = segmentId(target);
     const zero = segment.amount === 0 ? ' · ZERO' : '';
-    return `<article class="mapitem c-${segment.color}">
+    return `<article class="mapitem c-${segment.color}" data-reorder-id="${esc(id)}" data-reorder-side="${segment.side}" draggable="true">
       <button class="maptune" ${targetAttrs(target)} type="button"><i></i><span><b>${esc(segment.name)}</b><small>${fmt(segment.amount)}${zero} · <em class="side-${segment.side}">${segment.side === 'in' ? 'IN' : 'OUT'}</em></small></span></button>
-      <button class="visToggle ${shown ? 'on' : ''}" data-visible="${segmentId(target)}" type="button">${shown ? 'ON' : 'OFF'}</button>
+      <div class="mapactions">
+        <button class="visToggle ${shown ? 'on' : ''}" data-visible="${id}" type="button">${shown ? 'ON' : 'OFF'}</button>
+        <button class="reorder" data-move="${id}" data-side="${segment.side}" data-dir="-1" aria-label="Move ${esc(segment.name)} earlier" type="button">↑</button>
+        <button class="reorder" data-move="${id}" data-side="${segment.side}" data-dir="1" aria-label="Move ${esc(segment.name)} later" type="button">↓</button>
+        <span class="draggrip" aria-hidden="true">≡</span>
+      </div>
     </article>`;
   }).join('');
 
@@ -748,7 +867,7 @@ function renderDesires() {
   $('#desires').innerHTML = state.desires.length ? state.desires.map((item) => {
     const percentage = item.target ? clamp(item.saved / item.target * 100, 0, 100) : 0;
     const spec = cardSpec(item.target || item.saved);
-    return `<button class="card c-invest ${spec.wide ? 'wide' : ''}" ${targetAttrs({ k: 'saved', id: item.id })} type="button">
+    return `<button class="card c-life ${spec.wide ? 'wide' : ''}" ${targetAttrs({ k: 'saved', id: item.id })} type="button">
       <span class="ctop"><span>TRACKED DESIRE</span><span>${Math.round(percentage)}%</span></span>
       <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.saved)} <small>/ ${fmt(item.target)}</small></b>
       ${hollowTiles(item.saved, item.target)}
@@ -855,6 +974,8 @@ function openQuick(target) {
   $('#quickStepPlus').textContent = fmt(tuneStep());
   $('#quickInput').step = tuneStep();
   $('#quickDetails').textContent = target.k === 'territory' ? 'ADD / DETAILS' : 'DETAILS';
+  quickColorKey = info.color;
+  $('#quickColorInput').value = resolvedColor(quickColorKey);
   const shown = isVisible(target);
   $('#quickVisibility').textContent = shown ? 'HIDE FROM CONTINUOUS BODY' : 'SHOW IN CONTINUOUS BODY';
   $('#quickVisibility').classList.toggle('on', shown);
@@ -965,7 +1086,7 @@ function edit(type, id = null, preset = {}) {
     html = field('Name', 'name', 'text', item.name, { full: true, attrs: 'required' })
       + field('Liquidity territory', 'type', 'select', item.type, { choices: ORDER.map((entry) => [entry, A[entry][0]]) })
       + field('Amount', 'amount', 'number', item.amount, { attrs: 'min="0" step="1" required' })
-      + field('Expected landing date', 'expectedDate', 'date', item.expectedDate)
+      + field('Expected landing date', 'expectedDate', 'date', item.expectedDate, { full: true })
       + field('Pipeline confidence %', 'confidence', 'number', item.confidence, { attrs: 'min="0" max="100" step="1"' })
       + field('Notes', 'notes', 'textarea', item.notes, { full: true });
   }
@@ -1036,6 +1157,27 @@ function del() {
   render();
 }
 
+function selectedCustomProfile() {
+  return activeCustomProfile();
+}
+function renderPaletteControls(mode = $('#colorwayInput')?.value || state.settings.colorway) {
+  const profile = selectedCustomProfile();
+  const colors = mode === 'custom' ? sanitizeColors(profile.colors, PALETTES.spectrum) : paletteFor(mode);
+  $('#customProfileInput').innerHTML = (state.settings.customProfiles || []).map((entry) => `<option value="${esc(entry.id)}" ${entry.id === state.settings.customProfileId ? 'selected' : ''}>${esc(entry.name)}</option>`).join('');
+  $('#customProfileNameInput').value = profile.name;
+  $('#paletteGrid').innerHTML = PALETTE_KEYS.map((key) => `<label class="paletteitem"><span><i style="background:${colors[key]}"></i>${PALETTE_LABELS[key]}</span><input type="color" data-palette-key="${key}" value="${colors[key]}" ${mode === 'custom' ? '' : 'disabled'} /></label>`).join('');
+  $('#paletteGrid').classList.toggle('locked', mode !== 'custom');
+}
+function createCustomProfile(baseMode = $('#colorwayInput')?.value || state.settings.colorway) {
+  const basis = baseMode === 'custom' ? paletteFor('custom') : paletteFor(baseMode);
+  const count = (state.settings.customProfiles || []).length + 1;
+  const profile = { id: uid('palette'), name: `Custom flow ${count}`, colors: { ...basis } };
+  state.settings.customProfiles.push(profile);
+  state.settings.customProfileId = profile.id;
+  state.settings.colorway = 'custom';
+  $('#colorwayInput').value = 'custom';
+  renderPaletteControls('custom');
+}
 function settings() {
   $('#taskPayoutInput').value = state.settings.taskPayout;
   $('#cellQuantumInput').value = quantum();
@@ -1045,6 +1187,7 @@ function settings() {
   $('#tailModeInput').value = state.settings.tailMode;
   $('#cardModeInput').value = state.settings.cardMode;
   $('#colorwayInput').value = state.settings.colorway || 'spectrum';
+  renderPaletteControls(state.settings.colorway);
   open('settingsSheet');
 }
 
@@ -1057,12 +1200,13 @@ function saveSettings(event) {
   state.settings.bodyMode = ['ledger', 'flow', 'exploded'].includes($('#bodyModeInput').value) ? $('#bodyModeInput').value : 'ledger';
   state.settings.tailMode = $('#tailModeInput').value === 'inline' ? 'inline' : 'stacked';
   state.settings.cardMode = $('#cardModeInput').value === 'compact' ? 'compact' : 'exact';
-  state.settings.colorway = ['spectrum', 'midnight', 'marker'].includes($('#colorwayInput').value) ? $('#colorwayInput').value : 'spectrum';
+  state.settings.colorway = ['spectrum', 'midnight', 'marker', 'custom'].includes($('#colorwayInput').value) ? $('#colorwayInput').value : 'spectrum';
+  const profile = selectedCustomProfile();
+  profile.name = ($('#customProfileNameInput').value || 'Custom flow').trim().slice(0, 40);
   state.isDemo = false;
   close('settingsSheet');
   render();
 }
-
 function exportBoard() {
   const blob = new Blob([JSON.stringify({ app: 'CHUNK // SOLVENCY', version: VERSION, exportedAt: new Date().toISOString(), state }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1121,6 +1265,9 @@ function click(event) {
     return;
   }
 
+  node = event.target.closest('[data-move]');
+  if (node) { moveSegment(node.dataset.move, node.dataset.side, Number(node.dataset.dir)); return; }
+
   node = event.target.closest('[data-add]');
   if (node) { edit(node.dataset.add); return; }
 
@@ -1174,6 +1321,7 @@ function init() {
   });
 
   $('#quickInput').oninput = (event) => syncQuick(event.target.value);
+  $('#quickColorInput').oninput = (event) => { if (quickColorKey) { setCustomColor(quickColorKey, event.target.value); } };
   $('#quickMinus').onclick = () => syncQuick(qDraft - tuneStep());
   $('#quickPlus').onclick = () => syncQuick(qDraft + tuneStep());
   $('#quickApply').onclick = applyQuick;
@@ -1192,6 +1340,11 @@ function init() {
 
   $('#editorForm').onsubmit = saveEdit;
   $('#deleteBtn').onclick = del;
+  $('#colorwayInput').onchange = (event) => renderPaletteControls(event.target.value);
+  $('#customProfileInput').onchange = (event) => { state.settings.customProfileId = event.target.value; renderPaletteControls($('#colorwayInput').value); };
+  $('#customProfileNameInput').oninput = (event) => { selectedCustomProfile().name = event.target.value.slice(0, 40); $('#customProfileInput').innerHTML = (state.settings.customProfiles || []).map((entry) => `<option value="${esc(entry.id)}" ${entry.id === state.settings.customProfileId ? 'selected' : ''}>${esc(entry.name || 'Custom flow')}</option>`).join(''); };
+  $('#paletteNewBtn').onclick = () => createCustomProfile($('#colorwayInput').value);
+  $('#paletteGrid').oninput = (event) => { const key = event.target?.dataset?.paletteKey; if (key) { setCustomColor(key, event.target.value); $('#colorwayInput').value = 'custom'; renderPaletteControls('custom'); } };
   $('#settingsForm').onsubmit = saveSettings;
   $('#backdrop').onclick = () => close();
   $('#quickDial').onpointerdown = (event) => begin(event, 'q');
@@ -1202,6 +1355,11 @@ function init() {
   window.addEventListener('resize', () => { scheduleLedgerSizing(); updateScrollTone(); });
   window.addEventListener('scroll', () => window.requestAnimationFrame(updateScrollTone), { passive: true });
   document.addEventListener('click', click);
+  document.addEventListener('dragstart', (event) => { const node = event.target.closest?.('[data-reorder-id]'); if (!node) return; draggedLayer = { id: node.dataset.reorderId, side: node.dataset.reorderSide }; node.classList.add('dragging'); event.dataTransfer?.setData('text/plain', draggedLayer.id); });
+  document.addEventListener('dragend', (event) => { event.target.closest?.('[data-reorder-id]')?.classList.remove('dragging'); draggedLayer = null; });
+  document.addEventListener('dragover', (event) => { const node = event.target.closest?.('[data-reorder-id]'); if (node && draggedLayer && node.dataset.reorderSide === draggedLayer.side) { event.preventDefault(); node.classList.add('dropready'); } });
+  document.addEventListener('dragleave', (event) => event.target.closest?.('[data-reorder-id]')?.classList.remove('dropready'));
+  document.addEventListener('drop', (event) => { const node = event.target.closest?.('[data-reorder-id]'); if (node && draggedLayer && node.dataset.reorderSide === draggedLayer.side) { event.preventDefault(); moveSegmentTo(draggedLayer.id, draggedLayer.side, node.dataset.reorderId); } });
   document.addEventListener('keydown', keys);
   document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
 
