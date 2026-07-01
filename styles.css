@@ -68,3 +68,40 @@ button.eventcard:hover{background:rgba(255,255,255,.055)}
 @media(max-width:1100px){.eventdeck{grid-template-columns:repeat(3,minmax(0,1fr))}.eventcard:nth-child(3){border-right:0}.eventcard:nth-child(-n+3){border-bottom:1px solid var(--line)}}
 @media(max-width:900px){.ledgerline{grid-template-columns:108px minmax(0,1fr)}.card.wide{grid-column:1/-1}.territory.wide{grid-column:span 2}.eventdeck{grid-template-columns:repeat(2,minmax(0,1fr))}.eventcard:nth-child(2){border-right:0}.eventcard:nth-child(3){border-right:1px solid var(--line)}.eventcard:nth-child(-n+4){border-bottom:1px solid var(--line)}}
 @media(max-width:620px){.ledgerbody{gap:10px}.ledgerline{grid-template-columns:1fr;gap:5px}.ledgerline>header{grid-template-columns:auto 1fr;align-items:baseline;padding:8px 9px}.ledgerline>header small{grid-column:1/-1}.ledgerline .bodygrid{--cols:10}.minitiles.exact,.hollowtiles.exact{grid-template-columns:repeat(12,1fr)}.territory.wide{grid-column:1/-1}.card.wide{grid-column:1/-1}.eventcard.duty{grid-column:1/-1}.eventdeck{grid-template-columns:1fr 1fr}.eventcard:nth-child(1){border-right:0}.eventcard:nth-child(3){border-right:0}.eventcard:nth-child(4){border-right:1px solid var(--line)}.eventcard:nth-child(-n+3){border-bottom:1px solid var(--line)}}
+
+
+/* v0.7.1: packed physical tails — no hollow remainder inside the default ledger */
+.ledgercells{
+  --cols:32;
+  --cellpx:18px;
+  display:flex;
+  flex-wrap:wrap;
+  align-content:flex-start;
+  overflow:hidden;
+  min-height:var(--cellpx);
+  border:1px solid var(--strong);
+  background:transparent;
+}
+.ledgercells .bodycell{
+  flex:0 0 var(--cellpx);
+  width:var(--cellpx);
+  height:var(--cellpx);
+  aspect-ratio:auto;
+  border:0;
+  border-right:1px solid rgba(5,8,11,.70);
+  border-bottom:1px solid rgba(5,8,11,.70);
+  background:var(--c);
+}
+.ledgercells .bodycell.tailstack{
+  min-width:1px;
+  background:var(--c);
+  box-shadow:inset 1px 0 0 rgba(255,255,255,.82), inset -1px 0 0 rgba(2,5,9,.48);
+}
+.ledgercells .bodycell.tailstack:after{opacity:.18}
+.ledgercells .bodycell.partial:not(.tailstack){
+  background:linear-gradient(90deg,var(--c) 0 calc(var(--fill,1)*100%),rgba(13,19,26,.8) calc(var(--fill,1)*100%) 100%);
+}
+.ledgercells .empty{width:100%;padding:16px 10px}
+.ledgerline .bodygrid{border:0}
+@media(max-width:900px){.ledgercells{--cols:20}}
+@media(max-width:620px){.ledgercells{--cols:10}}

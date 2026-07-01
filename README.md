@@ -1,30 +1,30 @@
-# CHUNK // SOLVENCY v0.7
+# CHUNK // SOLVENCY v0.7.1 — packed-tail polish hotfix
 
-A private, local-first, phone-installable solvency board. This release focuses on macro legibility: a two-line IN / OUT ledger, discrete retained tails, a configurable hard-cycle deadline, daily duty planning, and exact expandable evidence maps on cards.
+## What changed
 
-## What changed in v0.7
+The default **IN / OUT** ledger now uses the visual logic Jake specified:
 
-- **Two-line ledger:** IN is its own continuous row; OUT is the row below. There is no fake divider void inside either mass.
-- **Discrete stacked tails:** at $100/cell, every category keeps its own small remainder as a distinct colored partial cell at the far end of IN or OUT. The app no longer fuses all tails into one anonymous residue color.
-- **Hard monthly cycle:** default deadline is the next first of the month. Change it in `SETTINGS → Hard cycle deadline`. Campaign math, scheduled inbound, daily recommendation, and task equivalents now all refer to that same date.
-- **Today’s Duty:** top-left current-event card opens today’s calendar square. It shows a real daily target when you set one, or a suggested pace to close the unmapped gap by the chosen deadline.
-- **Exact / Tight cards:** exact mode (the default) expands large cards and shows all $25 evidence cells, up through a safe high cap. Tight mode restores compact capped card maps.
+- Full cells remain full, countable chunks in their category order.
+- Each category’s non-full remainder is lifted to the end of its respective **IN** or **OUT** mass.
+- Each remainder becomes its own **solid clickable proportional block** rather than a fractional fill inside a hollow square.
+- Those blocks flex-pack together with no internal dark remainder gaps. They remain distinct by color and thin dividers, so tapping one still tunes the source category.
+- **INLINE DETAIL** is unchanged: it continues to show partial tails in their original positions when you specifically want per-category microscopic accounting.
 
-## Updating from v0.6
+This is intentionally a narrow v0.7.1 patch. It preserves the working two-line ledger, calendar, campaign deck, exact card maps, and persistent local state.
 
-1. Export a backup from v0.6 once you have real data.
-2. Unzip v0.7.
-3. Copy the **contents inside** `chunk-solvency-v0.7` into your local cloned `chunk-solvency` repo folder. Replace duplicates. Do not overwrite the hidden `.git` folder.
-4. Stage, commit, and push.
+## Update route
 
-Suggested commit message:
+1. Export a backup from the live app once real data matters.
+2. Unzip `chunk-solvency-v0.7.1.zip`.
+3. Copy the **contents inside** `chunk-solvency-v0.7.1` over your cloned local `chunk-solvency` repository folder. Replace duplicate files; do not replace the hidden `.git` folder.
+4. In VS Code, stage all changes, commit, then push:
 
+```text
+Pack proportional tails without hollow gaps v0.7.1
 ```
-Install two-line ledger and active duty planning v0.7
-```
 
-Your v0.6 saved state migrates automatically on the same URL/browser. v0.7 changes display defaults but does not erase your actual values. Your data remains local to each browser/device. Keep backup JSON files private and out of GitHub.
+5. After GitHub Pages deploys, open the direct Safari Pages URL once before reopening the Home Screen app. This version has a new cache identifier, so the corrected physical-tail renderer replaces the previous shell.
 
-## Install on iPhone
+## Privacy note
 
-Open the GitHub Pages URL in Safari, then use **Share → Add to Home Screen → Open as Web App → Add**. After updating, open the direct Pages URL once in Safari before relaunching the Home Screen app so the new service worker can update its cache.
+Your financial board still lives only in browser-local storage on each device. GitHub Pages hosts the application code, not your entered amounts. Export backups are private financial files; keep them outside the public repository.

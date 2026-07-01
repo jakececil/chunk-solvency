@@ -1,6 +1,6 @@
-const VERSION = 7;
-const KEY = 'chunk-solvency-v7';
-const OLD_KEYS = ['chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
+const VERSION = 8;
+const KEY = 'chunk-solvency-v8';
+const OLD_KEYS = ['chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
 
 const A = {
   hardAsset: ['Hard assets', 'HARD ASSET', 'hard', 'Sellable possessions. Least liquid.'],
@@ -457,8 +457,11 @@ function bodyCells(segment, options = {}) {
 function stackedTailCell(segment, extraClass = '') {
   const visual = visualUnits(segment.amount, quantum());
   if (!visual.tail) return '';
-  const title = `${segment.name}: retained tail ${fmt(segment.amount % quantum())}. Tap to tune.`;
-  return `<button class="bodycell partial tailstack ${extraClass}" style="--c:${COLOR[segment.color]};--fill:${visual.tail}" title="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`;
+  const remainder = segment.amount % quantum();
+  const title = `${segment.name}: retained tail ${fmt(remainder)}. Tap to tune.`;
+  // In the packed ledger, this is a physically narrow clickable block, not a hollow cell.
+  // Its width is assigned after render from the exact fraction of one visible cell.
+  return `<button class="bodycell tailstack ${extraClass}" data-tail="${visual.tail}" style="--c:${COLOR[segment.color]};--fill:${visual.tail}" title="${esc(title)}" aria-label="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`;
 }
 
 function cardSpec(amount) {
@@ -623,16 +626,17 @@ function renderBody() {
       ? sideSegments.map((segment) => stackedTailCell(segment)).join('')
       : sideSegments.map((segment) => bodyCells(segment)).join('');
     const cells = state.settings.tailMode === 'stacked' ? `${full}${tails}` : tails;
+    const modeLabel = state.settings.tailMode === 'stacked' ? 'FULL CELLS → PACKED TAILS' : 'EVERY TAIL INLINE';
     return `<section class="ledgerline ${side}">
-      <header><span>${labelText}</span><b>${fmt(sideAmount(sideSegments))}</b><small>${state.settings.tailMode === 'stacked' ? 'FULL CELLS → DISCRETE TAILS' : 'EVERY TAIL INLINE'}</small></header>
-      <div class="bodygrid">${cells || '<div class="empty">ZERO VISIBLE MATTER</div>'}</div>
+      <header><span>${labelText}</span><b>${fmt(sideAmount(sideSegments))}</b><small>${modeLabel}</small></header>
+      <div class="ledgercells" data-ledger-side="${side}">${cells || '<div class="empty">ZERO VISIBLE MATTER</div>'}</div>
     </section>`;
   };
   grid.className = 'ledgerbody';
   grid.innerHTML = `${buildLine('IN', 'in', inSegments)}${buildLine('OUT', 'out', outSegments)}`;
   $('#bodyCaption').textContent = state.settings.tailMode === 'stacked'
-    ? `IN / OUT LEDGER · each category’s full ${fmt(quantum())} cells stay in sequence. Every partial remnant is then retained as its own colored tail at the end of its own side.`
-    : 'IN / OUT LEDGER · every category—including its partial tail—stays inline. Switch to STACK AT END when you want the clean macro read.';
+    ? `IN / OUT LEDGER · each category’s full ${fmt(quantum())} cells stay in sequence. Every partial remnant is then packed as its own solid, clickable colored block at the end of its own side—no hollow remainder cells.`
+    : 'IN / OUT LEDGER · every category—including its partial tail—stays inline. Switch to PACK TAILS when you want the clean macro read.';
 }
 
 function renderTime() {
@@ -725,6 +729,34 @@ function renderDesires() {
   }).join('') : '<div class="empty">No sanctioned life tracks yet. Books, tools, toys, travel, food pleasures, and weirdness can all have a bounded address here.</div>';
 }
 
+function sizeLedgerCells() {
+  // The ledger uses a flex-packed physical field, so each tail can occupy only
+  // its actual fraction of one cell rather than showing a dark hollow remainder.
+  $$('.ledgercells').forEach((line) => {
+    const computed = getComputedStyle(line);
+    const columns = Math.max(1, Number.parseInt(computed.getPropertyValue('--cols'), 10) || 32);
+    const cell = line.clientWidth / columns;
+    if (!Number.isFinite(cell) || cell <= 0) return;
+    line.style.setProperty('--cellpx', `${cell}px`);
+    line.querySelectorAll('.bodycell:not(.tailstack)').forEach((cellNode) => {
+      cellNode.style.flexBasis = `${cell}px`;
+      cellNode.style.width = `${cell}px`;
+      cellNode.style.height = `${cell}px`;
+    });
+    line.querySelectorAll('.tailstack[data-tail]').forEach((tailNode) => {
+      const fraction = clamp(n(tailNode.dataset.tail, 1), 0.01, 1);
+      const width = cell * fraction;
+      tailNode.style.flexBasis = `${width}px`;
+      tailNode.style.width = `${width}px`;
+      tailNode.style.height = `${cell}px`;
+    });
+  });
+}
+
+function scheduleLedgerSizing() {
+  window.requestAnimationFrame(sizeLedgerCells);
+}
+
 function render() {
   renderStatus();
   renderBodyControls();
@@ -734,6 +766,7 @@ function render() {
   renderExpenses();
   renderDebts();
   renderDesires();
+  scheduleLedgerSizing();
   save();
 }
 
@@ -1134,6 +1167,7 @@ function init() {
   window.addEventListener('pointermove', move, { passive: false });
   window.addEventListener('pointerup', end);
   window.addEventListener('pointercancel', end);
+  window.addEventListener('resize', scheduleLedgerSizing);
   document.addEventListener('click', click);
   document.addEventListener('keydown', keys);
   document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
