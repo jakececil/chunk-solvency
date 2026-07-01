@@ -1,116 +1,57 @@
-# CHUNK // SOLVENCY — v0.2
+# CHUNK // SOLVENCY v0.3
 
-A **private, local-first financial terrain board** built around the actual whiteboard logic:
+A local-first financial terrain board. There is no account, server, bank link, analytics, or database. The app code can be hosted on GitHub Pages, but the actual board state is stored locally in each browser/device.
 
-- time is a corridor;
-- money has different liquidity temperatures;
-- bills are a warm monthly wall;
-- debt is visible mass;
-- desire gets a bounded place instead of being treated as treason.
+## What changed in v0.3
 
-This version is a deeper rebuild of v0.1. It remains a static web app: no npm, no Node, no server, no accounts, no database, no bank link, no tracking.
+- **No input zoom ambush:** the app now uses a locked mobile viewport, 16px form inputs, no autofocus on dialogs, and gesture-zoom suppression. Opening an editor should no longer fling iPhone Safari into a close-up of a text field.
+- **The Continuous Body:** a literal, untruncated flow map showing every amount as major tiles divided into four quarter-cells. At the default scale, one major tile is $100 and one visible quarter-cell is $25. The dollar readout remains exact; the visual body rounds only to the nearest $25 quarter-cell, so $66 becomes three visible quarter-cells instead of pretending to be a whole $100 chunk.
+- **Square week calendar:** the Time Corridor is a complete seven-column calendar grid. It shows the whole horizon at once rather than requiring horizontal ribbon scrolling.
+- **Tap-to-tune territories:** tap hard assets, pipeline, true cash, buffer, or investments to open a direct territory tuner. Type an exact amount or drag left/right in $25 quarter steps. This is a board-level total control; individual named entries remain editable below.
+- **Correct territory behavior:** tapping an asset territory opens that territory’s tuner, not an accidental “new money object” form.
+- **Debt cards are dossiers:** debt mass is fully represented in the Continuous Body. The cards remain compact summaries instead of lying with truncated chunk squares.
 
-## The important privacy model
+## First run
 
-Your financial values save **inside the browser on the device where you use the app**.
+1. Unzip the package.
+2. Open the `chunk-solvency-v0.3` folder in VS Code.
+3. Open `index.html` in a browser, or use Live Server.
+4. The initial figures are **demo terrain**. Use **START CLEAN** when you want to enter real numbers.
 
-GitHub Pages hosts the code only. The live board is not written into GitHub unless you manually upload an exported backup file—which you should never do.
+## Updating your existing GitHub repo from v0.2
 
-- PC board and iPhone board are separate local states.
-- Use **EXPORT** to create a JSON backup.
-- Use **IMPORT** to move that private JSON between devices.
-- Do not commit the backup JSON to the repository.
+Do this in the local cloned repository folder you created last time. Do **not** delete the `.git` folder.
 
-## What v0.2 does
-
-- **Time corridor:** shows the next 14–60 days as physical cells, with money arriving and obligations becoming hot.
-- **Liquidity territories:** hard assets, pipeline, true cash, protected buffer, and investments live as distinct territories with different meanings.
-- **Monthly wall:** recurring and one-off obligations become visible warm blocks.
-- **Debt dragons:** balances turn into a field of cells. Each cell is a chunk of visible mass. The cell scale adapts if the balance is very large.
-- **Sanctioned life tracks:** books, tools, toys, travel, candy, art material, etc. can have a bounded, visible allocation goal.
-- **One full task event:** this is intentionally a complete-task readout, not a “do twenty minutes” productivity gimmick. It shows how one actual finished DA task changes the true-cash terrain.
-- **Automatic browser saving** plus private JSON export/import.
-- **Phone-first PWA structure:** works as a normal site, and can be added to an iPhone Home Screen through Safari after GitHub Pages deployment.
-
-## Folder structure
-
-```text
-chunk-solvency-v0.2/
-├── index.html
-├── styles.css
-├── app.js
-├── manifest.json
-├── sw.js
-├── .nojekyll
-├── .gitignore
-├── icons/
-│   ├── icon-192.png
-│   ├── icon-512.png
-│   └── apple-touch-icon.png
-└── README.md
-```
-
-## First local test
-
-1. Unzip the project folder somewhere permanent, such as `Documents/Projects/`.
-2. Open the folder in VS Code.
-3. Double-click `index.html` or right-click it and choose **Open with Live Server** if you already use that extension.
-4. You will see fake demo terrain. It exists only to give the board a physical body on first launch.
-5. Tap **START CLEAN**, then add your actual layers and obligations.
-
-The basic interface works from a normal local file. The service-worker/offline shell activates after it is served from a website such as GitHub Pages.
-
-## Put it on GitHub Pages — browser-only route
-
-1. Create a new GitHub repository, preferably called `chunk-solvency`.
-2. Choose **Public** for the simplest GitHub Pages setup. That exposes the app code, **not** the local values you input later.
-3. In the empty repository, click **Add file → Upload files**.
-4. Upload the *contents inside this folder*:
+1. Unzip this v0.3 package somewhere separate.
+2. Open two File Explorer windows:
+   - the unzipped `chunk-solvency-v0.3` folder;
+   - your local cloned `chunk-solvency` repository folder.
+3. Copy the **contents inside** `chunk-solvency-v0.3` into the existing local `chunk-solvency` repository folder.
+4. When Windows asks, choose **Replace the files in the destination**.
+5. In VS Code, open the local `chunk-solvency` repository folder.
+6. Open Source Control (`Ctrl + Shift + G`), stage all changes, commit with:
 
    ```text
-   index.html
-   styles.css
-   app.js
-   manifest.json
-   sw.js
-   .nojekyll
-   .gitignore
-   icons/
-   README.md
+   Rebuild flow body and quarter-cell controls in v0.3
    ```
 
-   Do not upload the ZIP itself. Do not create an accidental nested route like `chunk-solvency/chunk-solvency/index.html`.
+7. Push / Sync Changes.
 
-5. Commit the uploaded files to `main`.
-6. In the GitHub repository go to **Settings → Pages**.
-7. Under **Build and deployment**, select **Deploy from a branch**.
-8. Select branch **main**, folder **/(root)**, then press **Save**.
-9. After deployment, GitHub will provide a URL like:
+Your existing locally saved v0.2 board should migrate automatically when v0.3 opens on the same browser + site URL. Still, export a backup before doing heavy edits.
 
-   ```text
-   https://YOUR-GITHUB-USERNAME.github.io/chunk-solvency/
-   ```
+## GitHub Pages + iPhone
 
-10. Open that URL on desktop first. Make one fake edit and refresh to prove local persistence. Then reset or enter your actual board.
+Keep GitHub Pages pointed at the `main` branch and `/(root)` source. After pushing, wait briefly for Pages to rebuild.
 
-## Put it on iPhone Home Screen
+Because this is a Progressive Web App, an older Home Screen install can show cached v0.2 files for a little while. If the new build does not appear:
 
-1. Open the GitHub Pages address in **Safari** on iPhone.
-2. Tap the Share icon.
-3. Choose **Add to Home Screen**.
-4. Turn on **Open as Web App** if Safari displays that option.
-5. Tap **Add**.
+1. Open the GitHub Pages URL directly in Safari.
+2. Close and reopen Safari, then revisit the URL.
+3. If needed, remove the old Home Screen icon and add the site again: **Share → Add to Home Screen → Open as Web App → Add**.
 
-The Home Screen version uses its own local browser storage. So it is normal for the PC and iPhone boards to begin empty relative to each other. Export/import is the intentional bridge.
+## State + backups
 
-## Updating from v0.1
-
-v0.2 will try to read an existing v0.1 local board if it finds one in the same browser and deployed URL. It does not overwrite your old v0.1 state, but it can bring the old assets, obligations, and debt data into the new visual system.
-
-Before updating a live app, use **EXPORT** in v0.1 anyway. Treat this as a real financial instrument: keep a backup before moving terrain.
-
-## Current boundaries
-
-This is not yet a bank sync app, automatic data importer, tax estimator, or a native Xcode package. That is intentional.
-
-The core question here is whether looking at money as **spatial matter moving through threat and time** creates better decisions than looking at it as flat text. Once that is proven in lived use, future upgrades can be chosen from actual friction instead of imagined app scope.
+- **Automatic save:** all edits are saved in local browser storage.
+- **Different device = different state:** desktop and iPhone do not share their saved board automatically.
+- **Move a board:** use **EXPORT** on one device and **IMPORT** on the other.
+- **Do not commit exports:** exported JSON files contain your actual financial information. Keep them outside the public repository.

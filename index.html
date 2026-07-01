@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0d1016" />
   <meta name="description" content="A local-first, visual financial solvency board." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
-  <title>Chunk // Solvency Board</title>
+  <title>Chunk // Solvency Board v0.3</title>
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
@@ -24,16 +24,16 @@
         <p>an economic weather machine for one human life</p>
       </div>
       <div class="masthead-actions">
-        <button class="utility-button" id="exportBtn">EXPORT</button>
-        <button class="utility-button" id="importBtn">IMPORT</button>
+        <button class="utility-button" id="exportBtn" type="button">EXPORT</button>
+        <button class="utility-button" id="importBtn" type="button">IMPORT</button>
         <input id="importInput" type="file" accept="application/json,.json" hidden />
-        <button class="utility-button accent-button" id="settingsBtn">SETTINGS</button>
+        <button class="utility-button accent-button" id="settingsBtn" type="button">SETTINGS</button>
       </div>
     </header>
 
     <section class="demo-banner" id="demoBanner" hidden>
       <div><strong>DEMO TERRAIN LOADED.</strong> <span>The numbers are fake. The board is real.</span></div>
-      <button id="clearDemoBtn">START CLEAN</button>
+      <button id="clearDemoBtn" type="button">START CLEAN</button>
     </section>
 
     <section class="command-strip" aria-live="polite">
@@ -54,6 +54,7 @@
     </section>
 
     <nav class="board-nav" aria-label="Board positions">
+      <a href="#continuumBoard">FLOW</a>
       <a href="#timeBoard">TIME</a>
       <a href="#liquidityBoard">LIQUIDITY</a>
       <a href="#monthlyWall">WALL</a>
@@ -61,17 +62,35 @@
       <a href="#desireTracks">LIFE</a>
     </nav>
 
+    <section class="board-section continuum-section" id="continuumBoard">
+      <div class="section-head">
+        <div>
+          <span class="section-index">00</span>
+          <h2>THE CONTINUOUS BODY</h2>
+          <p>Every major tile is split into four quarter-cells. No fake whole-chunk rounding: the last cell fills only as much as the actual number warrants.</p>
+        </div>
+        <div class="section-readout"><span>BASE UNIT</span><strong id="quarterReadout">—</strong></div>
+      </div>
+      <div class="flow-instructions"><span class="flow-orb"></span><p><b>TAP A COLOR</b> to open its territory or record. The five liquidity colors can also be dragged left/right in their tuner, one quarter-cell at a time.</p></div>
+      <div class="flow-legend" id="flowLegend"></div>
+      <div class="flow-frame">
+        <div class="flow-grid" id="flowGrid" aria-label="Continuous financial flow"></div>
+      </div>
+      <p class="flow-caption">Sequence: hard assets → pipeline → true cash → protected buffer → investments → this month’s obligations → debt minimums → total dragon mass.</p>
+    </section>
+
     <section class="board-section time-section" id="timeBoard">
       <div class="section-head">
         <div>
           <span class="section-index">01</span>
           <h2>TIME CORRIDOR</h2>
-          <p>Today moves toward the next wall. Events are pinned where they become real.</p>
+          <p>A whole horizon at once. Seven days across; the physical grid repeats as weeks instead of becoming a horizontal ribbon.</p>
         </div>
         <div class="section-readout"><span>ACTIVE CASH</span><strong id="activeCashReadout">—</strong></div>
       </div>
       <div class="time-board-frame">
         <div class="time-board-meta"><span id="timeStart">Today</span><span id="timeEnd">+28 days</span></div>
+        <div class="calendar-weekdays" aria-hidden="true"><span>SUN</span><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span></div>
         <div class="time-corridor" id="timeCorridor"></div>
       </div>
       <div class="event-strip" id="nextEvents"></div>
@@ -80,57 +99,62 @@
     <section class="board-section liquidity-section" id="liquidityBoard">
       <div class="section-head">
         <div>
-          <span class="section-index">02</span>
+          <span class="section-index">03</span>
           <h2>LIQUIDITY TERRITORIES</h2>
-          <p>Money is not one thing. Each layer has a different conversion cost.</p>
+          <p>These are distinct kinds of money. Tap any territory to adjust its total directly; tap a named entry to edit the underlying record.</p>
         </div>
-        <button class="add-button" data-add="asset">+ PLACE MONEY</button>
+        <button class="add-button" data-add="asset" type="button">+ PLACE MONEY</button>
       </div>
 
       <div class="liquidity-lane">
-        <article class="territory hard-assets" data-territory="hardAsset" tabindex="0">
+        <article class="territory hard-assets" data-territory="hardAsset" tabindex="0" role="button" aria-label="Adjust hard asset total">
           <div class="territory-topline"><span>OPTIONAL LIQUIDATION</span><span class="territory-arrow">↘</span></div>
           <h3>HARD ASSETS</h3>
           <strong id="total-hardAsset">—</strong>
           <p>Possessions you could sell only by sacrificing something.</p>
           <div class="chunk-field small-chunks" id="chunks-hardAsset"></div>
           <div class="territory-items" id="items-hardAsset"></div>
+          <span class="territory-action">TAP TERRITORY TO TUNE ↔</span>
         </article>
 
-        <article class="territory pipeline" data-territory="pipeline" tabindex="0">
+        <article class="territory pipeline" data-territory="pipeline" tabindex="0" role="button" aria-label="Adjust pipeline total">
           <div class="territory-topline"><span>NOT YET REAL</span><span class="territory-arrow">↘</span></div>
           <h3>PIPELINE</h3>
           <strong id="total-pipeline">—</strong>
           <p>Expected income. It becomes cash only when it lands.</p>
           <div class="chunk-field small-chunks" id="chunks-pipeline"></div>
           <div class="territory-items" id="items-pipeline"></div>
+          <span class="territory-action">TAP TERRITORY TO TUNE ↔</span>
         </article>
 
-        <article class="territory current" data-territory="cash" tabindex="0">
+        <article class="territory current" data-territory="cash" tabindex="0" role="button" aria-label="Adjust true cash total">
           <div class="territory-topline"><span>THE ONLY TRUE PRESENT</span><span class="territory-arrow">↓</span></div>
           <h3>TRUE CASH</h3>
           <strong id="total-cash">—</strong>
           <p>Available today. This is what crosses the wall.</p>
           <div class="chunk-field current-chunks" id="chunks-cash"></div>
           <div class="territory-items" id="items-cash"></div>
+          <span class="territory-action">TAP TERRITORY TO TUNE ↔</span>
         </article>
 
-        <article class="territory buffer" data-territory="buffer" tabindex="0">
+        <article class="territory buffer" data-territory="buffer" tabindex="0" role="button" aria-label="Adjust buffer total">
           <div class="territory-topline"><span>SANCTIONED SEPARATION</span><span class="territory-arrow">↙</span></div>
           <h3>BUFFER</h3>
           <strong id="total-buffer">—</strong>
           <p>Money deliberately cut off from active panic.</p>
           <div class="chunk-field small-chunks" id="chunks-buffer"></div>
           <div class="territory-items" id="items-buffer"></div>
+          <span class="territory-action">TAP TERRITORY TO TUNE ↔</span>
         </article>
 
-        <article class="territory investments" data-territory="investment" tabindex="0">
+        <article class="territory investments" data-territory="investment" tabindex="0" role="button" aria-label="Adjust investments total">
           <div class="territory-topline"><span>CONDITIONAL LIQUIDITY</span><span class="territory-arrow">↙</span></div>
           <h3>INVESTMENTS</h3>
           <strong id="total-investment">—</strong>
           <p>Sellable capital with a potential future cost.</p>
           <div class="chunk-field small-chunks" id="chunks-investment"></div>
           <div class="territory-items" id="items-investment"></div>
+          <span class="territory-action">TAP TERRITORY TO TUNE ↔</span>
         </article>
       </div>
     </section>
@@ -142,7 +166,7 @@
     <section class="board-section wall-section" id="monthlyWall">
       <div class="section-head">
         <div>
-          <span class="section-index">03</span>
+          <span class="section-index">04</span>
           <h2>MONTHLY WALL</h2>
           <p>The obligations that become heavy whether you admire them or not.</p>
         </div>
@@ -150,7 +174,7 @@
       </div>
       <div class="wall-legend"><span class="legend-swatch essential"></span>fixed / essential <span class="legend-swatch flexible"></span>variable / flexible <span class="legend-swatch oneoff"></span>one-off</div>
       <div class="obligation-board" id="obligationBoard"></div>
-      <button class="add-button warm" data-add="expense">+ ADD OBLIGATION</button>
+      <button class="add-button warm" data-add="expense" type="button">+ ADD OBLIGATION</button>
     </section>
 
     <section class="bridge-section dragon-bridge" aria-label="Debt bridge">
@@ -160,25 +184,25 @@
     <section class="board-section dragons-section" id="dragonField">
       <div class="section-head">
         <div>
-          <span class="section-index">04</span>
+          <span class="section-index">05</span>
           <h2>DEBT DRAGONS</h2>
-          <p>Visible mass. Each cell is a piece of the creature you are shrinking.</p>
+          <p>Visible mass. Their complete quarter-cell body lives in the Continuous Body; these are their dossier cards.</p>
         </div>
         <div class="wall-readout dragon-readout"><span>TOTAL REMAINING</span><strong id="debtTotal">—</strong></div>
       </div>
-      <div class="dragon-note"><span class="dragon-eye">◉</span><p>Cell scale adapts when necessary. The board favors visible mass over fake precision.</p></div>
+      <div class="dragon-note"><span class="dragon-eye">◉</span><p>Card previews stay compact. The flow board is the literal mass map.</p></div>
       <div class="dragon-field" id="debtBoard"></div>
-      <button class="add-button dragon-add" data-add="debt">+ RELEASE A DRAGON</button>
+      <button class="add-button dragon-add" data-add="debt" type="button">+ RELEASE A DRAGON</button>
     </section>
 
     <section class="board-section life-section" id="desireTracks">
       <div class="section-head">
         <div>
-          <span class="section-index">05</span>
+          <span class="section-index">06</span>
           <h2>SANCTIONED LIFE</h2>
           <p>Not every dollar must be marched directly into the war. Give desire a visible, bounded place.</p>
         </div>
-        <button class="add-button life-add" data-add="desire">+ CREATE TRACK</button>
+        <button class="add-button life-add" data-add="desire" type="button">+ CREATE TRACK</button>
       </div>
       <div class="desire-board" id="desireBoard"></div>
     </section>
@@ -190,8 +214,8 @@
         <p>It only makes the material consequences of your next move easier to see.</p>
       </div>
       <div class="protocol-actions">
-        <button class="utility-button" id="loadDemoBtn">LOAD DEMO</button>
-        <button class="utility-button danger" id="resetBtn">ERASE BOARD</button>
+        <button class="utility-button" id="loadDemoBtn" type="button">LOAD DEMO</button>
+        <button class="utility-button danger" id="resetBtn" type="button">ERASE BOARD</button>
       </div>
     </section>
 
@@ -216,6 +240,35 @@
     </form>
   </dialog>
 
+  <dialog id="territoryDialog" class="editor-dialog territory-dialog">
+    <form method="dialog" id="territoryForm">
+      <div class="dialog-head">
+        <div><span class="micro-label">TERRITORY TOTAL</span><h2 id="territoryDialogTitle">True cash</h2></div>
+        <button type="button" class="close-button" id="closeTerritoryBtn" aria-label="Close">×</button>
+      </div>
+      <div class="territory-tuner-copy">
+        <p id="territoryDialogDescription">Set the board-level total directly, or drag through quarter-cells.</p>
+        <span id="territoryModeNote"></span>
+      </div>
+      <label class="tuner-number-field"><span>EXACT TOTAL</span><input id="territoryAmountInput" type="number" min="0" step="1" inputmode="decimal" /></label>
+      <div class="quarter-controls">
+        <button type="button" class="quarter-nudge" data-territory-nudge="-1">− <span id="quarterLabelMinus">$25</span></button>
+        <div class="territory-dial" id="territoryDial" role="slider" aria-label="Drag left or right to adjust amount in quarter chunks" tabindex="0">
+          <span class="dial-arrow">←</span><strong id="territoryDialValue">—</strong><span class="dial-arrow">→</span>
+          <small>DRAG LEFT / RIGHT · ONE QUARTER PER STEP</small>
+        </div>
+        <button type="button" class="quarter-nudge" data-territory-nudge="1">+ <span id="quarterLabelPlus">$25</span></button>
+      </div>
+      <div class="tuner-preview" id="territoryTunerPreview"></div>
+      <div class="dialog-actions territory-actions">
+        <button type="button" class="utility-button danger" id="returnToItemsBtn">ITEM SUM</button>
+        <span></span>
+        <button type="button" class="utility-button" id="cancelTerritoryBtn">CANCEL</button>
+        <button type="submit" class="save-button">SET TOTAL</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="settingsDialog" class="editor-dialog settings-dialog">
     <form method="dialog" id="settingsForm">
       <div class="dialog-head">
@@ -224,15 +277,14 @@
       </div>
       <div class="editor-fields">
         <label class="field"><span>Typical payout for one complete DA task</span><input id="taskPayoutInput" type="number" min="0" step="1" inputmode="decimal" /></label>
-        <label class="field"><span>Chunk denomination</span><input id="chunkSizeInput" type="number" min="25" step="25" inputmode="decimal" /></label>
-        <label class="field"><span>Days shown in time corridor</span><input id="forecastDaysInput" type="number" min="14" max="60" step="1" inputmode="numeric" /></label>
-        <p class="settings-note">Changing chunk denomination changes the visual scale only. It does not change your numbers.</p>
+        <label class="field"><span>Major tile denomination</span><input id="chunkSizeInput" type="number" min="100" max="2000" step="100" inputmode="numeric" /></label>
+        <label class="field"><span>Days shown in time corridor</span><input id="forecastDaysInput" type="number" min="14" max="60" step="7" inputmode="numeric" /></label>
+        <p class="settings-note">A major tile is divided into four quarter-cells. At the normal $100 scale, every visible quarter-cell is $25. Change scale only when the whole body becomes physically too large.</p>
       </div>
       <div class="dialog-actions"><span></span><button type="button" class="utility-button" id="cancelSettingsBtn">CANCEL</button><button type="submit" class="save-button">SAVE CALIBRATION</button></div>
     </form>
   </dialog>
 
-  <template id="itemTemplate"></template>
   <script src="app.js"></script>
 </body>
 </html>

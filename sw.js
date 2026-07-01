@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chunk-solvency-v0-2';
+const CACHE_NAME = 'chunk-solvency-v0-3';
 const APP_SHELL = [
   './',
   './index.html',
