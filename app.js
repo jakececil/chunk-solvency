@@ -1,6 +1,6 @@
-const VERSION = 5;
-const KEY = 'chunk-solvency-v5';
-const OLD_KEYS = ['chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
+const VERSION = 6;
+const KEY = 'chunk-solvency-v6';
+const OLD_KEYS = ['chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
 
 const A = {
   hardAsset: ['Hard assets', 'HARD ASSET', 'hard', 'Sellable possessions. Least liquid.'],
@@ -54,6 +54,7 @@ let quick = null;
 let qDraft = 0;
 let dayKey = null;
 let dayDraft = 0;
+let earnedDraft = 0;
 let editor = null;
 let sheet = null;
 let drag = null;
@@ -64,13 +65,15 @@ function blank() {
     isDemo: false,
     settings: {
       taskPayout: 0,
-      cellQuantum: 25,
+      cellQuantum: 100,
       forecastDays: 28,
-      bodyMode: 'flow',
+      bodyMode: 'ledger',
+      tailMode: 'collected',
       hiddenSegments: {}
     },
     territoryTotals: {},
     calendarGoals: {},
+    earningsLog: {},
     assets: [],
     expenses: [],
     debts: [],
@@ -83,9 +86,10 @@ function demo() {
   return {
     version: VERSION,
     isDemo: true,
-    settings: { taskPayout: 66, cellQuantum: 25, forecastDays: 28, bodyMode: 'flow', hiddenSegments: {} },
+    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'collected', hiddenSegments: {} },
     territoryTotals: {},
     calendarGoals: {},
+    earningsLog: {},
     assets: [
       { id: uid('a'), name: 'Checking / active cash', type: 'cash', amount: 420, expectedDate: '', confidence: 100, notes: '' },
       { id: uid('a'), name: 'Protected buffer', type: 'buffer', amount: 250, expectedDate: '', confidence: 100, notes: '' },
@@ -113,6 +117,7 @@ function normalize(input) {
   const source = input && typeof input === 'object' ? input : blank();
   const territoryTotals = {};
   const calendarGoals = {};
+  const earningsLog = {};
   const hiddenSegments = source.settings?.hiddenSegments && typeof source.settings.hiddenSegments === 'object'
     ? source.settings.hiddenSegments
     : {};
@@ -126,8 +131,12 @@ function normalize(input) {
   Object.entries(source.calendarGoals || source.dayGoals || {}).forEach(([key, value]) => {
     if (/^\d{4}-\d{2}-\d{2}$/.test(key) && nn(value) > 0) calendarGoals[key] = nn(value);
   });
+  Object.entries(source.earningsLog || source.earnedLog || {}).forEach(([key, value]) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key) && nn(value) > 0) earningsLog[key] = nn(value);
+  });
 
-  const migratedQuantum = source.settings?.cellQuantum ?? (source.settings?.chunkSize ? Math.max(25, Math.round(n(source.settings.chunkSize) / 4)) : 25);
+  const legacyBeforeSix = n(source.version, 0) < 6;
+  const migratedQuantum = legacyBeforeSix ? 100 : (source.settings?.cellQuantum ?? (source.settings?.chunkSize ? Math.max(25, Math.round(n(source.settings.chunkSize) / 4)) : 100));
   const cellQuantum = Number(migratedQuantum) === 100 ? 100 : 25;
 
   return {
@@ -137,11 +146,13 @@ function normalize(input) {
       taskPayout: nn(source.settings?.taskPayout),
       cellQuantum,
       forecastDays: clamp(Math.round(n(source.settings?.forecastDays, 28) / 7) * 7, 14, 84),
-      bodyMode: source.settings?.bodyMode === 'exploded' ? 'exploded' : 'flow',
+      bodyMode: legacyBeforeSix ? 'ledger' : (['ledger', 'flow', 'exploded'].includes(source.settings?.bodyMode) ? source.settings.bodyMode : 'ledger'),
+      tailMode: legacyBeforeSix ? 'collected' : (source.settings?.tailMode === 'inline' ? 'inline' : 'collected'),
       hiddenSegments: Object.fromEntries(Object.entries(hiddenSegments).filter(([, hidden]) => !!hidden))
     },
     territoryTotals,
     calendarGoals,
+    earningsLog,
     assets: (source.assets || []).map((item) => ({
       id: item.id || uid('a'), name: String(item.name || 'Untitled money'), type: A[item.type] ? item.type : 'cash',
       amount: nn(item.amount), expectedDate: item.expectedDate || '', confidence: clamp(n(item.confidence, 100), 0, 100), notes: String(item.notes || '')
@@ -194,6 +205,22 @@ const minTotal = () => sum(state.debts, 'minPayment');
 const expenseTotal = () => sum(state.expenses.filter((item) => item.cadence === 'monthly'), 'amount');
 const wall = () => expenseTotal() + minTotal();
 const quantum = () => state.settings.cellQuantum === 100 ? 100 : 25;
+const sameMonth = (date, reference = today()) => date.getMonth() === reference.getMonth() && date.getFullYear() === reference.getFullYear();
+const loggedInMonth = (offset = 0) => {
+  const reference = new Date(today().getFullYear(), today().getMonth() + offset, 1, 12);
+  return Object.entries(state.earningsLog || {}).reduce((total, [key, value]) => {
+    const date = parse(key);
+    return date && date.getMonth() === reference.getMonth() && date.getFullYear() === reference.getFullYear() ? total + nn(value) : total;
+  }, 0);
+};
+const goalInRange = (start, end) => Object.entries(state.calendarGoals || {}).reduce((total, [key, value]) => {
+  const date = parse(key);
+  return date && date >= start && date <= end ? total + nn(value) : total;
+}, 0);
+const loggedInRange = (start, end) => Object.entries(state.earningsLog || {}).reduce((total, [key, value]) => {
+  const date = parse(key);
+  return date && date >= start && date <= end ? total + nn(value) : total;
+}, 0);
 const segmentId = (target) => `${target.k}:${target.id || ''}`;
 const isVisible = (target) => !state.settings.hiddenSegments[segmentId(target)];
 
@@ -221,6 +248,20 @@ function events(days = state.settings.forecastDays) {
     }
   });
 
+  Object.entries(state.calendarGoals || {}).forEach(([key, amount]) => {
+    const date = parse(key);
+    if (date && date >= start && date <= end && nn(amount) > 0) {
+      output.push({ source: 'goal', id: key, kind: 'goal', name: 'Earning goal', amount: nn(amount), effective: nn(amount), date, meta: 'planned earnings goal' });
+    }
+  });
+
+  Object.entries(state.earningsLog || {}).forEach(([key, amount]) => {
+    const date = parse(key);
+    if (date && date >= start && date <= end && nn(amount) > 0) {
+      output.push({ source: 'log', id: key, kind: 'logged', name: 'Logged earnings', amount: nn(amount), effective: nn(amount), date, meta: 'confirmed work log' });
+    }
+  });
+
   state.expenses.forEach((item) => {
     const dates = item.cadence === 'oneoff' ? [parse(item.dueDate)].filter(Boolean) : monthly(item.dueDay, start, end);
     dates.forEach((date) => {
@@ -232,17 +273,48 @@ function events(days = state.settings.forecastDays) {
     monthly(item.dueDay, start, end).forEach((date) => output.push({ source: 'debt', id: item.id, kind: 'debt', name: `${item.name} minimum`, amount: item.minPayment, date, meta: 'debt minimum' }));
   });
 
-  return output.sort((left, right) => left.date - right.date || (left.kind === 'income' ? -1 : 1));
+  return output.sort((left, right) => left.date - right.date || ((left.kind === 'income' || left.kind === 'goal') ? -1 : 1));
 }
 
-function projection() {
+function projection(options = {}) {
+  const includeGoals = options.includeGoals !== false;
   let balance = total('cash');
   let breach = null;
   events().forEach((event) => {
-    balance += event.kind === 'income' ? event.effective : -event.amount;
+    if (event.kind === 'income' || (includeGoals && event.kind === 'goal')) balance += event.effective;
+    else if (event.kind === 'expense' || event.kind === 'debt') balance -= event.amount;
     if (balance < 0 && !breach) breach = event;
   });
   return { balance, breach };
+}
+
+function hardCycle() {
+  const start = today();
+  const recurring = state.expenses.filter((item) => item.cadence === 'monthly');
+  const anchor = [...recurring].sort((left, right) => right.amount - left.amount)[0];
+  const fallback = events(42).find((event) => event.kind === 'expense' || event.kind === 'debt');
+  if (anchor) {
+    const dates = monthly(anchor.dueDay, start, add(start, 62));
+    const date = dates.find((entry) => entry >= start) || add(start, 30);
+    return { date, label: anchor.name };
+  }
+  return fallback ? { date: fallback.date, label: fallback.name } : { date: add(start, 30), label: '30-day horizon' };
+}
+
+function campaign() {
+  const start = today();
+  const cycle = hardCycle();
+  const out = events(Math.max(1, Math.round((cycle.date - start) / 86400000) + 1))
+    .filter((event) => event.kind === 'expense' || event.kind === 'debt')
+    .reduce((total, event) => total + event.amount, 0);
+  const pipeline = events(Math.max(1, Math.round((cycle.date - start) / 86400000) + 1))
+    .filter((event) => event.kind === 'income')
+    .reduce((total, event) => total + event.effective, 0);
+  const goals = goalInRange(start, cycle.date);
+  const rawGap = Math.max(0, out - total('cash'));
+  const postPlanGap = Math.max(0, rawGap - pipeline - goals);
+  const tasks = state.settings.taskPayout > 0 ? Math.ceil(postPlanGap / state.settings.taskPayout) : 0;
+  return { cycle, out, pipeline, goals, rawGap, postPlanGap, tasks, loggedMonth: loggedInMonth(), previousMonth: loggedInMonth(-1) };
 }
 
 function targetAttrs(target) {
@@ -307,12 +379,12 @@ function set(target, value) {
 
 function segments() {
   const output = [];
-  ORDER.forEach((type) => output.push({ name: A[type][0], short: A[type][1], amount: total(type), color: A[type][2], target: { k: 'territory', id: type }, kind: 'territory' }));
-  state.desires.forEach((item) => output.push({ name: item.name, short: 'SANCTIONED LIFE', amount: item.saved, targetAmount: item.target, color: 'invest', target: { k: 'saved', id: item.id }, kind: 'life' }));
-  state.expenses.forEach((item) => output.push({ name: item.name, short: E[item.type][0], amount: item.amount, color: E[item.type][1], target: { k: 'expense', id: item.id }, kind: 'expense' }));
+  ORDER.forEach((type) => output.push({ name: A[type][0], short: A[type][1], amount: total(type), color: A[type][2], target: { k: 'territory', id: type }, kind: 'territory', side: 'in' }));
+  state.desires.forEach((item) => output.push({ name: item.name, short: 'SANCTIONED LIFE', amount: item.saved, targetAmount: item.target, color: 'invest', target: { k: 'saved', id: item.id }, kind: 'life', side: 'out' }));
+  state.expenses.forEach((item) => output.push({ name: item.name, short: E[item.type][0], amount: item.amount, color: E[item.type][1], target: { k: 'expense', id: item.id }, kind: 'expense', side: 'out' }));
   state.debts.forEach((item) => {
-    output.push({ name: `${item.name} minimum`, short: 'MIN BITE', amount: item.minPayment, color: 'debt', target: { k: 'minimum', id: item.id }, kind: 'minimum' });
-    output.push({ name: `${item.name} body`, short: 'DRAGON MASS', amount: item.balance, color: 'mass', target: { k: 'balance', id: item.id }, kind: 'balance' });
+    output.push({ name: `${item.name} minimum`, short: 'MIN BITE', amount: item.minPayment, color: 'debt', target: { k: 'minimum', id: item.id }, kind: 'minimum', side: 'out' });
+    output.push({ name: `${item.name} body`, short: 'DRAGON MASS', amount: item.balance, color: 'mass', target: { k: 'balance', id: item.id }, kind: 'balance', side: 'out' });
   });
   return output;
 }
@@ -335,6 +407,8 @@ function amountDescription(amount, unit = quantum()) {
 function bodyCells(segment, options = {}) {
   const unit = options.unit ?? quantum();
   const max = options.max ?? Infinity;
+  const includeTail = options.includeTail !== false;
+  const extraClass = options.extraClass || '';
   const visual = visualUnits(segment.amount, unit);
   const count = Math.min(visual.full, max);
   const parts = [];
@@ -343,13 +417,24 @@ function bodyCells(segment, options = {}) {
   for (let index = 0; index < count; index += 1) {
     const first = index === 0 ? 'seg-start' : '';
     const tileStart = unit === 25 && index % 4 === 0 ? 'tile-start' : '';
-    parts.push(`<button class="bodycell ${first} ${tileStart}" style="--c:${COLOR[segment.color]};--fill:1" title="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`);
+    parts.push(`<button class="bodycell ${first} ${tileStart} ${extraClass}" style="--c:${COLOR[segment.color]};--fill:1" title="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`);
   }
-  if (visual.full < max && visual.tail > 0) {
+  if (includeTail && visual.full < max && visual.tail > 0) {
     const first = visual.full === 0 ? 'seg-start' : '';
     const tileStart = unit === 25 && visual.full % 4 === 0 ? 'tile-start' : '';
-    parts.push(`<button class="bodycell partial ${first} ${tileStart}" style="--c:${COLOR[segment.color]};--fill:${visual.tail}" title="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`);
+    parts.push(`<button class="bodycell partial ${first} ${tileStart} ${extraClass}" style="--c:${COLOR[segment.color]};--fill:${visual.tail}" title="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`);
   }
+  return parts.join('');
+}
+
+function residueCells(amount, side, extraClass = '') {
+  const unit = quantum();
+  const visual = visualUnits(amount, unit);
+  const tint = side === 'in' ? 'var(--lime)' : 'var(--flex)';
+  const parts = [];
+  const title = `${side === 'in' ? 'IN' : 'OUT'} residue: ${fmt(amount)} across collected tails. This is an accounting remainder, not a separate category.`;
+  for (let index = 0; index < visual.full; index += 1) parts.push(`<span class="bodycell residue ${extraClass}" style="--c:${tint};--fill:1" title="${esc(title)}"></span>`);
+  if (visual.tail > 0) parts.push(`<span class="bodycell residue partial ${extraClass}" style="--c:${tint};--fill:${visual.tail}" title="${esc(title)}"></span>`);
   return parts.join('');
 }
 
@@ -382,16 +467,18 @@ function hollowTiles(saved, target, maxCells = 48) {
 }
 
 function renderStatus() {
-  const next = events().find((event) => event.kind !== 'income');
-  const p = projection();
+  const next = events().find((event) => event.kind === 'expense' || event.kind === 'debt');
+  const p = projection({ includeGoals: false });
+  const plan = projection({ includeGoals: true });
   const cash = total('cash');
   const monthlyWall = wall();
+  const c = campaign();
 
   $('#cashReadout').textContent = fmt(cash);
   $('#monthlyReadout').textContent = fmt(monthlyWall);
   $('#debtReadout').textContent = fmt(debtTotal());
   $('#taskValue').textContent = state.settings.taskPayout ? fmt(state.settings.taskPayout) : '—';
-  $('#taskCopy').textContent = state.settings.taskPayout ? `${amountDescription(state.settings.taskPayout, 25)} enters true cash.` : 'Set the usual completed-task payout.';
+  $('#taskCopy').textContent = state.settings.taskPayout ? (c.postPlanGap ? `${c.tasks} complete task${c.tasks === 1 ? '' : 's'} remain in the current plan.` : 'Current plan closes the mapped gap.') : 'Calibrate your usual completed-task payout.';
 
   if (next) {
     const days = Math.max(0, Math.round((next.date - today()) / 86400000));
@@ -404,18 +491,33 @@ function renderStatus() {
 
   let verdict = 'The board is empty. Place the first true number and the terrain begins to exist.';
   if (state.assets.length || state.expenses.length || state.debts.length || Object.keys(state.territoryTotals).length) {
-    if (p.breach) verdict = `Active cash breaches after ${p.breach.name}. A route is needed before ${label(p.breach.date)}.`;
+    if (p.breach && !plan.breach) verdict = `Bare cash breaches after ${p.breach.name}; the scheduled plan holds only if its expected earnings land.`;
+    else if (p.breach) verdict = `Active cash breaches after ${p.breach.name}. A route is needed before ${label(p.breach.date)}.`;
     else if (monthlyWall && cash >= monthlyWall) verdict = 'The baseline monthly wall is funded by true cash. Protection and acceleration are now the real questions.';
     else if (monthlyWall) verdict = `True cash covers ${Math.round(cash / monthlyWall * 100)}% of the monthly wall. The remaining gap still needs matter.`;
     else verdict = 'No recurring wall is defined yet. Place obligations before asking the board to forecast survival.';
   }
   $('#verdict').textContent = verdict;
   $('#demoBanner').hidden = !state.isDemo;
+  renderCampaign(c);
+}
+
+function renderCampaign(c) {
+  $('#cycleNeed').textContent = fmt(c.rawGap);
+  $('#cycleCopy').textContent = c.rawGap ? `${fmt(c.out)} due through ${label(c.cycle.date)} · ${c.cycle.label}` : `True cash clears the mapped cycle through ${label(c.cycle.date)}.`;
+  $('#planIn').textContent = fmt(c.pipeline + c.goals);
+  $('#planCopy').textContent = `${fmt(c.pipeline)} pipeline + ${fmt(c.goals)} day goals through the cycle.`;
+  $('#taskNeed').textContent = state.settings.taskPayout && c.postPlanGap ? `${c.tasks}` : '—';
+  $('#taskNeedCopy').textContent = state.settings.taskPayout ? (c.postPlanGap ? `${fmt(c.postPlanGap)} still unplanned at ${fmt(state.settings.taskPayout)} per full task.` : 'No unplanned gap after mapped inbound.') : 'Set task payout to derive task equivalents.';
+  $('#monthEarned').textContent = fmt(c.loggedMonth);
+  const delta = c.loggedMonth - c.previousMonth;
+  $('#monthCopy').textContent = c.previousMonth ? `${delta >= 0 ? '+' : '−'}${fmt(Math.abs(delta))} versus the prior month’s logged work.` : 'Log completed earnings on any calendar day to start the run history.';
 }
 
 function renderBodyControls() {
   $$('[data-quantum]').forEach((button) => button.classList.toggle('active', Number(button.dataset.quantum) === quantum()));
   $$('[data-bodymode]').forEach((button) => button.classList.toggle('active', button.dataset.bodymode === state.settings.bodyMode));
+  $$('[data-tailmode]').forEach((button) => button.classList.toggle('active', button.dataset.tailmode === state.settings.tailMode));
   $('#quantum').textContent = `${fmt(quantum())} / CELL`;
 }
 
@@ -429,7 +531,7 @@ function renderBody() {
     const target = segment.target;
     const zero = segment.amount === 0 ? ' · ZERO' : '';
     return `<article class="mapitem c-${segment.color}">
-      <button class="maptune" ${targetAttrs(target)} type="button"><i></i><span><b>${esc(segment.name)}</b><small>${fmt(segment.amount)}${zero} · ${esc(amountDescription(segment.amount))}</small></span></button>
+      <button class="maptune" ${targetAttrs(target)} type="button"><i></i><span><b>${esc(segment.name)}</b><small>${fmt(segment.amount)}${zero} · <em class="side-${segment.side}">${segment.side === 'in' ? 'IN' : 'OUT'}</em></small></span></button>
       <button class="visToggle ${shown ? 'on' : ''}" data-visible="${segmentId(target)}" type="button">${shown ? 'ON' : 'OFF'}</button>
     </article>`;
   }).join('');
@@ -437,16 +539,16 @@ function renderBody() {
   const frame = $('#bodyFrame');
   const grid = $('#bodyGrid');
   frame.classList.toggle('exploded', state.settings.bodyMode === 'exploded');
+  frame.classList.toggle('ledger', state.settings.bodyMode === 'ledger');
 
-  if (state.settings.bodyMode === 'flow') {
+  if (!activeSegments.length) {
     grid.className = 'bodygrid';
-    if (!activeSegments.length) {
-      grid.innerHTML = '<div class="empty">No visible financial matter yet. The tuning key still holds every zero territory in readiness.</div>';
-    } else {
-      grid.innerHTML = activeSegments.map((segment) => bodyCells(segment)).join('');
-    }
-    $('#bodyCaption').textContent = `CONTINUOUS VIEW · ${fmt(quantum())} exact cells · no padding voids. Full cells are exact; a final tail cell holds every remaining dollar with literal proportional fill.`;
-  } else {
+    grid.innerHTML = '<div class="empty">No visible financial matter yet. The tuning key still holds every zero territory in readiness.</div>';
+    $('#bodyCaption').textContent = 'The tuning key keeps zero territories alive even while the visible Body is empty.';
+    return;
+  }
+
+  if (state.settings.bodyMode === 'exploded') {
     grid.className = 'explodedbody';
     grid.innerHTML = visibleSegments.map((segment) => {
       const columns = quantum() === 25 ? 20 : 5;
@@ -455,8 +557,40 @@ function renderBody() {
         ${segment.amount > 0 ? `<div class="bodygrid" style="--cols:${columns}">${bodyCells(segment)}</div>` : '<div class="explodedzero">ZERO · READY</div>'}
       </article>`;
     }).join('') || '<div class="empty">Everything is hidden. Turn a segment ON in the tuning key to restore it.</div>';
-    $('#bodyCaption').textContent = `EXPLODED VIEW · each selected territory becomes a clean contained rectangle, five major $100 tiles wide when practical. The same exact tail logic still applies.`;
+    $('#bodyCaption').textContent = `EXPLODED VIEW · each selected territory becomes a clean contained rectangle. The exact tail remains physically proportional.`;
+    return;
   }
+
+  grid.className = 'bodygrid';
+  if (state.settings.bodyMode === 'flow') {
+    grid.innerHTML = activeSegments.map((segment) => bodyCells(segment)).join('');
+    $('#bodyCaption').textContent = `DETAILED FLOW · every category retains its own exact tail in sequence. Use IN / OUT to collect all small remainders at the end of each side.`;
+    return;
+  }
+
+  const inSegments = activeSegments.filter((segment) => segment.side === 'in');
+  const outSegments = activeSegments.filter((segment) => segment.side === 'out');
+  const buildSide = (sideSegments, side, boundary = false) => {
+    let remainder = 0;
+    let html = '';
+    sideSegments.forEach((segment) => {
+      if (state.settings.tailMode === 'collected') {
+        html += bodyCells(segment, { includeTail: false });
+        remainder += segment.amount % quantum();
+      } else {
+        html += bodyCells(segment);
+      }
+    });
+    if (state.settings.tailMode === 'collected' && remainder > 0) html += residueCells(remainder, side);
+    if (boundary && html) html = html.replace('class="bodycell', 'class="bodycell inout-start');
+    return html;
+  };
+  const inHtml = buildSide(inSegments, 'in');
+  const outHtml = buildSide(outSegments, 'out', !!inHtml);
+  grid.innerHTML = `${inHtml}${outHtml}` || '<div class="empty">No visible matter in the selected sides.</div>';
+  $('#bodyCaption').textContent = state.settings.tailMode === 'collected'
+    ? `IN / OUT LEDGER · full ${fmt(quantum())} cells remain attached to their category. Every sub-cell remainder is pooled at the tail of its side, leaving one clean boundary with no accounting voids.`
+    : `IN / OUT LEDGER · categories remain in their side, but every fractional tail stays inline instead of collecting at the side’s end.`;
 }
 
 function renderTime() {
@@ -476,13 +610,14 @@ function renderTime() {
     const dots = [
       goal && 'goal',
       calendarEvents.some((event) => event.kind === 'income') && 'income',
+      calendarEvents.some((event) => event.kind === 'logged') && 'logged',
       calendarEvents.some((event) => event.kind === 'expense') && 'bill',
       calendarEvents.some((event) => event.kind === 'debt') && 'debt'
     ].filter(Boolean).map((type) => `<i class="${type}"></i>`).join('');
 
     cells.push(`<button class="day ${index === 0 ? 'today' : ''}" data-day="${key}" type="button">
       <span class="daytop"><span><b class="daynum">DAY ${String(index + 1).padStart(2, '0')}</b><small class="dayweek">${wk(date)}</small></span><strong class="daydate">${date.getDate()}</strong></span>
-      <span class="indicators">${dots}</span>${goal ? `<span class="daygoal">GOAL ${fmt(goal)}</span>` : ''}
+      <span class="indicators">${dots}</span>${goal ? `<span class="daygoal">GOAL ${fmt(goal)}</span>` : ''}${nn(state.earningsLog[key]) ? `<span class="daylogged">LOG ${fmt(state.earningsLog[key])}</span>` : ''}
     </button>`);
   }
   $('#timeGrid').innerHTML = cells.join('');
@@ -517,7 +652,7 @@ function renderExpenses() {
 }
 
 function renderDebts() {
-  $('#debts').innerHTML = state.debts.length ? state.debts.map((item) => `<article class="card c-debt">
+  $('#debts').innerHTML = state.debts.length ? state.debts.map((item) => `<article class="card c-debt dragoncard" ${targetAttrs({ k: 'balance', id: item.id })}>
     <span class="ctop"><span>DEBT DRAGON</span><span>${item.apr ? `${item.apr.toFixed(2)}% APR` : 'APR unspecified'}</span></span>
     <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.balance)}</b>
     ${miniTiles(item.balance, 'mass')}
@@ -650,6 +785,12 @@ function syncDay(value) {
   $('#dayDialValue').textContent = `${fmt(dayDraft)} · ${amountDescription(dayDraft, 25)}`;
 }
 
+function syncEarned(value) {
+  earnedDraft = nn(value);
+  $('#earnedInput').value = earnedDraft;
+  $('#earnedReadout').textContent = earnedDraft ? fmt(earnedDraft) : 'NOT LOGGED';
+}
+
 function openDay(key) {
   dayKey = key;
   const date = parse(key);
@@ -658,16 +799,20 @@ function openDay(key) {
   $('#dayStepPlus').textContent = fmt(tuneStep());
   $('#dayInput').step = tuneStep();
   syncDay(state.calendarGoals[key] || 0);
-  const dayEvents = events().filter((event) => iso(event.date) === key);
-  $('#dayEvents').innerHTML = dayEvents.length ? dayEvents.map((event) => `<button class="dayevent ${event.kind}" data-edit="${event.source}" data-id="${event.id}" type="button"><span>${esc(event.name)} · ${esc(event.meta)}</span><b>${fmt(event.amount)}</b></button>`).join('') : '<p class="dayempty">No financial events on this day yet. That is an invitation, not an error.</p>';
+  syncEarned(state.earningsLog[key] || 0);
+  const dayEvents = events().filter((event) => iso(event.date) === key && !['goal', 'logged'].includes(event.kind));
+  $('#dayEvents').innerHTML = dayEvents.length ? dayEvents.map((event) => `<button class="dayevent ${event.kind}" data-edit="${event.source}" data-id="${event.id}" type="button"><span>${esc(event.name)} · ${esc(event.meta)}</span><b>${fmt(event.amount)}</b></button>`).join('') : '<p class="dayempty">No fixed money event on this day yet. Add a landing or an obligation below when needed.</p>';
   open('daySheet');
 }
 
 function saveDay() {
   if (!dayKey) return;
   const value = nn($('#dayInput').value);
+  const earned = nn($('#earnedInput').value);
   if (value) state.calendarGoals[dayKey] = value;
   else delete state.calendarGoals[dayKey];
+  if (earned) state.earningsLog[dayKey] = earned;
+  else delete state.earningsLog[dayKey];
   state.isDemo = false;
   close('daySheet');
   render();
@@ -778,6 +923,7 @@ function settings() {
   $('#cellQuantumInput').value = quantum();
   $('#horizonInput').value = state.settings.forecastDays;
   $('#bodyModeInput').value = state.settings.bodyMode;
+  $('#tailModeInput').value = state.settings.tailMode;
   open('settingsSheet');
 }
 
@@ -786,7 +932,8 @@ function saveSettings(event) {
   state.settings.taskPayout = nn($('#taskPayoutInput').value);
   state.settings.cellQuantum = Number($('#cellQuantumInput').value) === 100 ? 100 : 25;
   state.settings.forecastDays = clamp(Math.round(n($('#horizonInput').value, 28) / 7) * 7, 14, 84);
-  state.settings.bodyMode = $('#bodyModeInput').value === 'exploded' ? 'exploded' : 'flow';
+  state.settings.bodyMode = ['ledger', 'flow', 'exploded'].includes($('#bodyModeInput').value) ? $('#bodyModeInput').value : 'ledger';
+  state.settings.tailMode = $('#tailModeInput').value === 'inline' ? 'inline' : 'collected';
   state.isDemo = false;
   close('settingsSheet');
   render();
@@ -857,7 +1004,7 @@ function click(event) {
   if (node) { openDay(node.dataset.day); return; }
 
   node = event.target.closest('[data-edit]');
-  if (node) { close('daySheet'); edit(node.dataset.edit, node.dataset.id); return; }
+  if (node && ['asset', 'expense', 'debt', 'desire'].includes(node.dataset.edit)) { close('daySheet'); edit(node.dataset.edit, node.dataset.id); return; }
 
   node = event.target.closest('[data-k]');
   if (node) { openQuick({ k: node.dataset.k, id: node.dataset.id }); }
@@ -890,7 +1037,10 @@ function init() {
     button.onclick = () => { state.settings.cellQuantum = Number(button.dataset.quantum) === 100 ? 100 : 25; state.isDemo = false; render(); };
   });
   $$('[data-bodymode]').forEach((button) => {
-    button.onclick = () => { state.settings.bodyMode = button.dataset.bodymode === 'exploded' ? 'exploded' : 'flow'; state.isDemo = false; render(); };
+    button.onclick = () => { state.settings.bodyMode = ['ledger', 'flow', 'exploded'].includes(button.dataset.bodymode) ? button.dataset.bodymode : 'ledger'; state.isDemo = false; render(); };
+  });
+  $$('[data-tailmode]').forEach((button) => {
+    button.onclick = () => { state.settings.tailMode = button.dataset.tailmode === 'inline' ? 'inline' : 'collected'; state.isDemo = false; render(); };
   });
 
   $('#quickInput').oninput = (event) => syncQuick(event.target.value);
@@ -901,6 +1051,7 @@ function init() {
   $('#quickVisibility').onclick = () => { if (quick) toggleVisibility(quick); };
 
   $('#dayInput').oninput = (event) => syncDay(event.target.value);
+  $('#earnedInput').oninput = (event) => syncEarned(event.target.value);
   $('#dayMinus').onclick = () => syncDay(dayDraft - tuneStep());
   $('#dayPlus').onclick = () => syncDay(dayDraft + tuneStep());
   $('#clearGoal').onclick = () => syncDay(0);

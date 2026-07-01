@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Chunk" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css?v=0.5.0" />
-  <title>CHUNK // SOLVENCY v0.5</title>
+  <link rel="stylesheet" href="styles.css?v=0.6.0" />
+  <title>CHUNK // SOLVENCY v0.6</title>
 </head>
 <body>
   <div class="grain"></div>
@@ -51,6 +51,13 @@
       </button>
     </section>
 
+    <section class="eventdeck" aria-label="Active current events">
+      <article class="eventcard gap"><span class="micro">CYCLE GAP / MINIMUM</span><strong id="cycleNeed">—</strong><small id="cycleCopy">Mapping the next hard cycle.</small></article>
+      <article class="eventcard plan"><span class="micro">SCHEDULED INBOUND</span><strong id="planIn">—</strong><small id="planCopy">Pipeline and day goals land here.</small></article>
+      <article class="eventcard tasks"><span class="micro">FULL TASKS LEFT</span><strong id="taskNeed">—</strong><small id="taskNeedCopy">Calibrate payout to derive task equivalents.</small></article>
+      <article class="eventcard logged"><span class="micro">MONTHLY WORK LOG</span><strong id="monthEarned">—</strong><small id="monthCopy">Log completed earnings in the calendar.</small></article>
+    </section>
+
     <nav aria-label="Board sections">
       <a href="#body">FLOW</a><a href="#time">TIME</a><a href="#liquidity">LIQUIDITY</a><a href="#wall">WALL</a><a href="#dragons">DRAGONS</a><a href="#life">LIFE</a>
     </nav>
@@ -60,12 +67,12 @@
         <div>
           <span class="index">00</span>
           <h2>THE CONTINUOUS BODY</h2>
-          <p>One exact visual organism. The default flow has no voids; an exploded switch lets every territory stand in its own clean rectangle.</p>
+          <p>One exact visual organism. The default ledger treats every value as IN or OUT, pools sub-cell residue at each side’s tail, and leaves only one clean pressure boundary.</p>
         </div>
         <aside><span>RESOLUTION</span><strong id="quantum">—</strong></aside>
       </header>
 
-      <p class="instruction"><i></i><b>TAP ANY COLOR</b> to tune it. Full cells are exact quantum units; the final tail cell is filled to its literal percentage instead of being rounded into a lie.</p>
+      <p class="instruction"><i></i><b>TAP ANY COLOR</b> to tune it. In / Out is the clean accounting mode: full cells stay with their category, while minor remainders collect at the far tail of each side.</p>
 
       <section class="flowcontrols" aria-label="Continuous body controls">
         <div class="resolutioncontrol">
@@ -77,9 +84,17 @@
         </div>
         <div class="viewcontrol">
           <span class="micro">BODY VIEW</span>
-          <div class="segmented" role="group" aria-label="Body view">
-            <button type="button" data-bodymode="flow">CONTINUOUS</button>
+          <div class="segmented tri" role="group" aria-label="Body view">
+            <button type="button" data-bodymode="ledger">IN / OUT</button>
+            <button type="button" data-bodymode="flow">DETAILED</button>
             <button type="button" data-bodymode="exploded">EXPLODED</button>
+          </div>
+        </div>
+        <div class="tailcontrol">
+          <span class="micro">TAIL RESIDUE</span>
+          <div class="segmented" role="group" aria-label="Tail behavior">
+            <button type="button" data-tailmode="collected">COLLECT</button>
+            <button type="button" data-tailmode="inline">INLINE</button>
           </div>
         </div>
         <div class="addcontrol">
@@ -106,7 +121,7 @@
         <div>
           <span class="index">01</span>
           <h2>TIME CORRIDOR</h2>
-          <p>Seven days across, weeks stacked vertically. Tap any day to set an earnings goal, route a pipeline landing, or create an obligation due on that exact square.</p>
+          <p>Seven days across, weeks stacked vertically. Tap any day to set a planned earning goal, log completed work, route a pipeline landing, or create an obligation due on that exact square.</p>
         </div>
         <aside><span>ACTIVE CASH</span><strong id="cashReadout">—</strong></aside>
       </header>
@@ -115,7 +130,7 @@
         <div class="weeklabels"><span>01</span><span>02</span><span>03</span><span>04</span><span>05</span><span>06</span><span>07</span></div>
         <div id="timeGrid" class="timegrid"></div>
       </div>
-      <p class="key"><i class="goal"></i>earn goal <i class="income"></i>incoming <i class="bill"></i>obligation <i class="debt"></i>debt bite</p>
+      <p class="key"><i class="goal"></i>earn goal <i class="income"></i>incoming <i class="logged"></i>logged <i class="bill"></i>obligation <i class="debt"></i>debt bite</p>
     </section>
 
     <section id="liquidity" class="section">
@@ -180,10 +195,12 @@
   <aside id="daySheet" class="sheet" aria-hidden="true">
     <header><div><span class="micro">DAY PLANNER</span><h2 id="dayTitle">Day</h2></div><button class="close" data-close="daySheet" type="button">×</button></header>
     <div class="sheetbody">
-      <p class="sheetdesc">Set a non-binding earnings goal, then route a pipeline landing or one-off obligation directly onto this square.</p>
+      <p class="sheetdesc">Plan a non-binding earning target, then separately log what actually completed. The work log is history only; update True Cash yourself when the money lands.</p>
       <div class="valuebar"><span>EARNING GOAL</span><strong id="dayReadout">NO GOAL</strong></div>
-      <label class="numberfield"><span>GOAL AMOUNT</span><input id="dayInput" type="number" min="0" step="1" inputmode="decimal" /></label>
+      <label class="numberfield"><span>PLANNED GOAL</span><input id="dayInput" type="number" min="0" step="1" inputmode="decimal" /></label>
       <div class="dialrow"><button id="dayMinus" type="button">− <span id="dayStepMinus">$25</span></button><div id="dayDial" class="dial" tabindex="0"><span>←</span><b id="dayDialValue">DRAG</b><span>→</span><small>GOAL QUARTER STEPS</small></div><button id="dayPlus" type="button">+ <span id="dayStepPlus">$25</span></button></div>
+      <div class="valuebar loggedbar"><span>CONFIRMED EARNED</span><strong id="earnedReadout">NOT LOGGED</strong></div>
+      <label class="numberfield"><span>LOGGED EARNINGS</span><input id="earnedInput" type="number" min="0" step="1" inputmode="decimal" /></label>
       <div class="daytitle"><span>SCHEDULED ON THIS DAY</span><button id="clearGoal" type="button">CLEAR GOAL</button></div><div id="dayEvents" class="dayevents"></div>
       <div class="dayadd"><button id="addIncomeDay" type="button">+ PIPELINE LANDING</button><button id="addExpenseDay" type="button">+ OBLIGATION DUE</button></div>
     </div>
@@ -202,13 +219,14 @@
         <label class="full"><span>Typical payout for one complete DA task</span><input id="taskPayoutInput" type="number" min="0" step="1" inputmode="decimal" /></label>
         <label><span>Body cell quantum</span><select id="cellQuantumInput"><option value="25">$25 per exact cell</option><option value="100">$100 per exact cell</option></select></label>
         <label><span>Time horizon (days)</span><input id="horizonInput" type="number" min="14" max="84" step="7" inputmode="numeric" /></label>
-        <label class="full"><span>Default body view</span><select id="bodyModeInput"><option value="flow">Continuous / gapless</option><option value="exploded">Exploded territories</option></select></label>
-        <p class="full">The Body uses exact full cells plus one literal partial tail. Direct tuning remains in $25 steps for tactile control, regardless of display resolution.</p>
+        <label class="full"><span>Default body view</span><select id="bodyModeInput"><option value="ledger">In / Out ledger</option><option value="flow">Detailed continuous flow</option><option value="exploded">Exploded territories</option></select></label>
+        <label class="full"><span>Default tail behavior</span><select id="tailModeInput"><option value="collected">Collect minor remainders at side tails</option><option value="inline">Keep every tail inline</option></select></label>
+        <p class="full">The default ledger keeps direct full cells attached to their category, then pools all small remainder matter at the far tail of IN and OUT. Direct tuning remains in $25 steps regardless of display resolution.</p>
       </div>
       <footer><span></span><i></i><button class="primary" type="submit">SAVE CALIBRATION</button></footer>
     </form>
   </aside>
 
-  <script src="app.js?v=0.5.0"></script>
+  <script src="app.js?v=0.6.0"></script>
 </body>
 </html>

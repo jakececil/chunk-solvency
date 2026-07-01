@@ -1,4 +1,4 @@
-const CACHE = 'chunk-solvency-v0.5.0';
+const CACHE = 'chunk-solvency-v0.6.0';
 const ASSETS = [
   './', './index.html', './styles.css?v=0.5.0', './app.js?v=0.5.0', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'
