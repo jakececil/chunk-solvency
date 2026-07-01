@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Chunk" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css?v=0.7.1" />
-  <title>CHUNK // SOLVENCY v0.7.1</title>
+  <link rel="stylesheet" href="styles.css?v=0.8" />
+  <title>CHUNK // SOLVENCY v0.8</title>
 </head>
 <body>
   <div class="grain"></div>
@@ -30,8 +30,7 @@
     </header>
 
     <section class="demo" id="demoBanner" hidden>
-      <span><b>DEMO TERRAIN LOADED.</b> The numbers are fake. The logic is real.</span>
-      <button id="cleanBtn" type="button">START CLEAN</button>
+      <span><b>DEMO TERRAIN LOADED.</b> The numbers are fake. The logic is real. Reset / demo controls now live inside Board settings.</span>
     </section>
 
     <section class="status">
@@ -52,9 +51,9 @@
     </section>
 
     <section class="eventdeck" aria-label="Active current events">
-      <button class="eventcard duty" id="todayPlanBtn" type="button"><span class="micro">TODAY’S DUTY</span><strong id="todayDuty">—</strong><small id="todayDutyCopy">Tap to set today’s earning plan.</small></button>
+      <button class="eventcard duty" id="todayPlanBtn" type="button"><span id="todayDutyLabel" class="micro">TODAY’S DUTY</span><strong id="todayDuty">—</strong><small id="todayDutyCopy">Tap to set today’s earning plan.</small></button>
       <button class="eventcard gap" id="cycleConfigBtn" type="button"><span class="micro">CYCLE GAP / MINIMUM</span><strong id="cycleNeed">—</strong><small id="cycleCopy">Set the hard deadline in calibration.</small></button>
-      <article class="eventcard plan"><span class="micro">MAPPED INBOUND</span><strong id="planIn">—</strong><small id="planCopy">Pipeline plus planned / logged work by deadline.</small></article>
+      <article class="eventcard plan"><span id="planLabel" class="micro">MAPPED INBOUND</span><strong id="planIn">—</strong><small id="planCopy">Pipeline plus planned / logged work by deadline.</small></article>
       <article class="eventcard tasks"><span class="micro">FULL TASKS LEFT</span><strong id="taskNeed">—</strong><small id="taskNeedCopy">Calibrate payout to derive task equivalents.</small></article>
       <article class="eventcard logged"><span class="micro">MONTHLY WORK LOG</span><strong id="monthEarned">—</strong><small id="monthCopy">Log completed earnings in the calendar.</small></article>
     </section>
@@ -92,10 +91,10 @@
           </div>
         </div>
         <div class="tailcontrol">
-          <span class="micro">TAIL PLACEMENT</span>
+          <span class="micro">TAIL LAYOUT</span>
           <div class="segmented" role="group" aria-label="Tail behavior">
-            <button type="button" data-tailmode="stacked">PACK TAILS</button>
-            <button type="button" data-tailmode="inline">INLINE DETAIL</button>
+            <button type="button" data-tailmode="stacked">PACK AT END</button>
+            <button type="button" data-tailmode="inline">KEEP INLINE</button>
           </div>
         </div>
         <div class="cardcontrol">
@@ -180,7 +179,7 @@
 
     <section class="protocol">
       <div><span class="micro">THE BOARD’S ONLY CLAIM</span><h2>It does not tell you who to become.</h2><p>It makes the terrain easier to see and therefore easier to reconfigure.</p></div>
-      <div class="tools"><button id="loadDemoBtn" type="button">LOAD DEMO</button><button id="resetBtn" class="danger" type="button">ERASE BOARD</button></div>
+      <div class="tools"><button id="protocolSettingsBtn" type="button">BOARD SETTINGS</button></div>
     </section>
     <footer><span>STATE SAVES ONLY IN THIS BROWSER</span><i></i><span id="saved">LOCAL MEMORY READY</span></footer>
   </main>
@@ -233,12 +232,18 @@
         <label class="full"><span>Default body view</span><select id="bodyModeInput"><option value="ledger">In / Out ledger</option><option value="flow">Detailed continuous flow</option><option value="exploded">Exploded territories</option></select></label>
         <label class="full"><span>Default tail behavior</span><select id="tailModeInput"><option value="stacked">Stack each category’s own tail at the side end</option><option value="inline">Keep every tail inline</option></select></label>
         <label class="full"><span>Card evidence density</span><select id="cardModeInput"><option value="exact">Exact maps (expand cards for large amounts)</option><option value="compact">Tight maps (cap visual cells)</option></select></label>
-        <p class="full">The default ledger keeps full cells attached to their category, then preserves each partial remainder as a separate colored cell at the side’s end. Direct tuning remains in $25 steps regardless of display resolution.</p>
+        <label class="full"><span>Colorway / board mood</span><select id="colorwayInput"><option value="spectrum">Flow spectrum — cool IN / warm OUT</option><option value="midnight">Midnight signal — saturated night neon</option><option value="marker">Markerboard — muted physical inks</option></select></label>
+        <p class="full">Flow spectrum keeps IN in the cool range: indigo hard assets, violet pipeline, green true cash, cyan buffer, blue investments. OUT starts yellow at immediate impact, heats through orange, and reaches red dragon mass.</p>
+        <section class="resettools full" aria-label="Board reset tools">
+          <span class="micro">LOCAL BOARD TOOLS</span>
+          <p>These actions affect only this browser’s saved board. Export first when the data matters.</p>
+          <div><button id="settingsDemoBtn" type="button">LOAD DEMO TERRAIN</button><button id="settingsCleanBtn" class="danger" type="button">START CLEAN</button></div>
+        </section>
       </div>
       <footer><span></span><i></i><button class="primary" type="submit">SAVE CALIBRATION</button></footer>
     </form>
   </aside>
 
-  <script src="app.js?v=0.7.0"></script>
+  <script src="app.js?v=0.8"></script>
 </body>
 </html>

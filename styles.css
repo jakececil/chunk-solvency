@@ -105,3 +105,81 @@ button.eventcard:hover{background:rgba(255,255,255,.055)}
 .ledgerline .bodygrid{border:0}
 @media(max-width:900px){.ledgercells{--cols:20}}
 @media(max-width:620px){.ledgercells{--cols:10}}
+
+/* v0.8: board calibration, spectrum colorways, quantum-synced dossier cells */
+:root{
+  --hard:#6087f6;
+  --pipe:#a97cff;
+  --cash:#5be2aa;
+  --buffer:#54d4ca;
+  --invest:#58baf3;
+  --one:#f2d760;
+  --flex:#ffbf69;
+  --ess:#ff8c63;
+  --debt:#ff5e5e;
+  --mass:#ff4e78;
+  --scroll-thumb:hsl(160 82% 61%);
+}
+html[data-colorway="spectrum"]{
+  --hard:#6087f6;
+  --pipe:#a97cff;
+  --cash:#5be2aa;
+  --buffer:#54d4ca;
+  --invest:#58baf3;
+  --one:#f2d760;
+  --flex:#ffbf69;
+  --ess:#ff8c63;
+  --debt:#ff5e5e;
+  --mass:#ff4e78;
+}
+html[data-colorway="midnight"]{
+  --hard:#4877ff;
+  --pipe:#ba63ff;
+  --cash:#47f2a3;
+  --buffer:#3de0d2;
+  --invest:#3fa8ff;
+  --one:#fff05c;
+  --flex:#ffb04f;
+  --ess:#ff764e;
+  --debt:#ff4758;
+  --mass:#ff3b71;
+}
+html[data-colorway="marker"]{
+  --hard:#6a86c6;
+  --pipe:#9a75c1;
+  --cash:#70bd93;
+  --buffer:#6cafb0;
+  --invest:#6a9cbf;
+  --one:#d9c766;
+  --flex:#d69a62;
+  --ess:#c9785e;
+  --debt:#c75d61;
+  --mass:#c15c7c;
+}
+html::-webkit-scrollbar-thumb{background:var(--scroll-thumb);box-shadow:0 0 12px color-mix(in srgb,var(--scroll-thumb) 70%,transparent)}
+html{scrollbar-color:var(--scroll-thumb) transparent}
+body{background:radial-gradient(circle at 14% -8%,color-mix(in srgb,var(--cash) 19%,transparent),transparent 30%),radial-gradient(circle at 93% 64%,color-mix(in srgb,var(--mass) 16%,transparent),transparent 34%),var(--bg)}
+.status{background:linear-gradient(90deg,color-mix(in srgb,var(--cash) 14%,transparent),rgba(25,25,30,.16) 47%,color-mix(in srgb,var(--debt) 14%,transparent))}
+.eventdeck{background:linear-gradient(90deg,color-mix(in srgb,var(--cash) 8%,transparent),color-mix(in srgb,var(--pipe) 8%,transparent) 33%,color-mix(in srgb,var(--one) 7%,transparent) 62%,color-mix(in srgb,var(--mass) 10%,transparent))}
+.timeframe{background:linear-gradient(140deg,color-mix(in srgb,var(--cash) 14%,transparent),rgba(13,17,23,.74) 52%,color-mix(in srgb,var(--mass) 13%,transparent))}
+.eventcard.plan strong{color:var(--pipe)}
+.eventcard.gap strong{color:var(--flex)}
+.eventcard.tasks strong{color:var(--cash)}
+.eventcard.logged strong{color:var(--invest)}
+.eventcard.duty strong{color:var(--cash)}
+.eventcard.duty{background:linear-gradient(135deg,color-mix(in srgb,var(--cash) 10%,transparent),transparent)}
+.eventcard.gap{background:linear-gradient(135deg,color-mix(in srgb,var(--one) 11%,transparent),transparent)}
+#settingsSheet .fields{overscroll-behavior:contain;padding-right:4px}
+#settingsSheet .fields input[type="date"]{min-width:0;max-width:100%}
+#settingsSheet .fields label{min-width:0}
+#settingsSheet .fields select,#settingsSheet .fields input{max-width:100%}
+.resettools{display:grid;gap:8px;border-top:1px solid var(--line);margin-top:2px;padding-top:14px}
+.resettools>p{margin:0;color:var(--dim);font-size:10px;line-height:1.45}
+.resettools>div{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.resettools button{min-height:42px;border:1px solid var(--strong);background:rgba(3,8,13,.54);padding:9px 10px;font-size:9px;letter-spacing:.08em}
+.resettools button:hover{background:rgba(255,255,255,.07);border-color:var(--ink)}
+@media(max-width:620px){
+  #settingsSheet{max-height:calc(100dvh - 16px)}
+  #settingsSheet .fields{padding-bottom:6px}
+  .resettools>div{grid-template-columns:1fr}
+}

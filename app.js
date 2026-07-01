@@ -1,6 +1,6 @@
-const VERSION = 8;
-const KEY = 'chunk-solvency-v8';
-const OLD_KEYS = ['chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
+const VERSION = 9;
+const KEY = 'chunk-solvency-v9';
+const OLD_KEYS = ['chunk-solvency-v8', 'chunk-solvency-v7', 'chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
 
 const A = {
   hardAsset: ['Hard assets', 'HARD ASSET', 'hard', 'Sellable possessions. Least liquid.'],
@@ -79,6 +79,7 @@ function blank() {
       bodyMode: 'ledger',
       tailMode: 'stacked',
       cardMode: 'exact',
+      colorway: 'spectrum',
       cycleDeadline: nextCycleISO(),
       hiddenSegments: {}
     },
@@ -97,7 +98,7 @@ function demo() {
   return {
     version: VERSION,
     isDemo: true,
-    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', cycleDeadline: nextCycleISO(), hiddenSegments: {} },
+    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', colorway: 'spectrum', cycleDeadline: nextCycleISO(), hiddenSegments: {} },
     territoryTotals: {},
     calendarGoals: {},
     earningsLog: {},
@@ -152,6 +153,7 @@ function normalize(input) {
   const cellQuantum = Number(migratedQuantum) === 100 ? 100 : 25;
   const cycleDeadline = safeCycleISO(source.settings?.cycleDeadline);
   const cardMode = source.settings?.cardMode === 'compact' ? 'compact' : 'exact';
+  const colorway = ['spectrum', 'midnight', 'marker'].includes(source.settings?.colorway) ? source.settings.colorway : 'spectrum';
 
   return {
     version: VERSION,
@@ -163,6 +165,7 @@ function normalize(input) {
       bodyMode: legacyBeforeSix ? 'ledger' : (['ledger', 'flow', 'exploded'].includes(source.settings?.bodyMode) ? source.settings.bodyMode : 'ledger'),
       tailMode: legacyBeforeSeven ? 'stacked' : (source.settings?.tailMode === 'inline' ? 'inline' : 'stacked'),
       cardMode,
+      colorway,
       cycleDeadline,
       hiddenSegments: Object.fromEntries(Object.entries(hiddenSegments).filter(([, hidden]) => !!hidden))
     },
@@ -221,6 +224,17 @@ const minTotal = () => sum(state.debts, 'minPayment');
 const expenseTotal = () => sum(state.expenses.filter((item) => item.cadence === 'monthly'), 'amount');
 const wall = () => expenseTotal() + minTotal();
 const quantum = () => state.settings.cellQuantum === 100 ? 100 : 25;
+const applyColorway = () => {
+  document.documentElement.dataset.colorway = state.settings.colorway || 'spectrum';
+};
+const updateScrollTone = () => {
+  const root = document.documentElement;
+  const max = Math.max(1, root.scrollHeight - window.innerHeight);
+  const progress = clamp(window.scrollY / max, 0, 1);
+  // Green at the upper/stable end, then yellow → orange → red deeper in the board.
+  const hue = Math.round(160 * (1 - progress));
+  root.style.setProperty('--scroll-thumb', `hsl(${hue} 82% 61%)`);
+};
 const sameMonth = (date, reference = today()) => date.getMonth() === reference.getMonth() && date.getFullYear() === reference.getFullYear();
 const loggedInMonth = (offset = 0) => {
   const reference = new Date(today().getFullYear(), today().getMonth() + offset, 1, 12);
@@ -466,7 +480,7 @@ function stackedTailCell(segment, extraClass = '') {
 
 function cardSpec(amount) {
   const exact = state.settings.cardMode !== 'compact';
-  const totalCells = Math.ceil(nn(amount) / 25);
+  const totalCells = Math.ceil(nn(amount) / quantum());
   return {
     exact,
     maxCells: exact ? 480 : 48,
@@ -477,22 +491,22 @@ function cardSpec(amount) {
 
 function miniTiles(amount, color) {
   const spec = cardSpec(amount);
-  const visual = visualUnits(amount, 25);
+  const visual = visualUnits(amount, quantum());
   const pieces = [];
   const complete = Math.min(visual.full, spec.maxCells);
   for (let index = 0; index < complete; index += 1) pieces.push('<i style="--fill:1"></i>');
   if (visual.full < spec.maxCells && visual.tail > 0) pieces.push(`<i class="partial" style="--fill:${visual.tail}"></i>`);
   const renderedCells = visual.full + (visual.tail ? 1 : 0);
   if (renderedCells > spec.maxCells) pieces.push(`<span class="more">+${renderedCells - spec.maxCells}</span>`);
-  return `<div class="minitiles c-${color} ${spec.exact ? 'exact' : 'compact'}" aria-label="${esc(amountDescription(amount, 25))}">${pieces.join('')}</div>`;
+  return `<div class="minitiles c-${color} ${spec.exact ? 'exact' : 'compact'}" aria-label="${esc(amountDescription(amount, quantum()))}">${pieces.join('')}</div>`;
 }
 
 function hollowTiles(saved, target) {
   const exact = state.settings.cardMode !== 'compact';
   const maxCells = exact ? 480 : 48;
-  const targetCells = Math.max(1, Math.ceil(nn(target) / 25));
+  const targetCells = Math.max(1, Math.ceil(nn(target) / quantum()));
   const visible = Math.min(targetCells, maxCells);
-  const savedVisual = visualUnits(saved, 25);
+  const savedVisual = visualUnits(saved, quantum());
   const parts = [];
   for (let index = 0; index < visible; index += 1) {
     const remaining = savedVisual.full - index;
@@ -542,26 +556,40 @@ function renderStatus() {
   renderCampaign(c);
 }
 
+function dutyMessage(c) {
+  const target = c.todayGoal || c.dailySuggested;
+  if (!target) return 'No required earning target is mapped for today. Keep the board honest; use the day only if it serves the larger terrain.';
+  if (!state.settings.taskPayout) return `${fmt(target)} is the working target. Set a typical task payout when you want task-equivalent language.`;
+  const equivalent = Math.max(1, Math.ceil(target / state.settings.taskPayout));
+  const variants = equivalent === 1
+    ? ['One full task. One door, not a firehose.', 'One clean completion moves real matter.', 'A single committed task materially changes the board.']
+    : [`${equivalent} full task equivalents. Sequence them; do not try to drink the whole board at once.`, `${equivalent} task equivalents in the plan. The number is finite, therefore it is actionable.`, `${equivalent} complete task equivalents. Build the bridge one finished commitment at a time.`];
+  const date = today();
+  return variants[(date.getDate() + date.getMonth()) % variants.length];
+}
+
 function renderCampaign(c) {
   const hardLabel = label(c.cycle.date);
+  const current = today();
   const todayCopy = c.todayGoal
-    ? `${fmt(c.todayGoal)} planned today · ${state.settings.taskPayout ? `${Math.max(1, Math.ceil(c.todayGoal / state.settings.taskPayout))} task equivalent${Math.ceil(c.todayGoal / state.settings.taskPayout) === 1 ? '' : 's'}` : 'tap to adjust'}`
+    ? `${fmt(c.todayGoal)} planned today · ${state.settings.taskPayout ? `${Math.max(1, Math.ceil(c.todayGoal / state.settings.taskPayout))} task equivalent${Math.ceil(c.todayGoal / state.settings.taskPayout) === 1 ? '' : 's'}` : 'tap to adjust'} · ${dutyMessage(c)}`
     : c.dailySuggested
-      ? `Suggested ${fmt(c.dailySuggested)} today to close ${fmt(c.postPlanGap)} by ${hardLabel}.`
-      : `No daily target needed from the current mapped cycle.`;
+      ? `Suggested ${fmt(c.dailySuggested)} today to close ${fmt(c.postPlanGap)} by ${hardLabel}. ${dutyMessage(c)}`
+      : dutyMessage(c);
+  $('#todayDutyLabel').textContent = `TODAY’S DUTY · ${wk(current)} ${label(current).toUpperCase()}`;
   $('#todayDuty').textContent = c.todayGoal ? fmt(c.todayGoal) : (c.dailySuggested ? fmt(c.dailySuggested) : 'CLEAR');
   $('#todayDutyCopy').textContent = todayCopy;
   $('#cycleNeed').textContent = fmt(c.rawGap);
   $('#cycleCopy').textContent = c.rawGap ? `${fmt(c.out)} due by ${hardLabel} · ${c.daysRemaining} day${c.daysRemaining === 1 ? '' : 's'} remain.` : `True cash clears the hard cycle through ${hardLabel}.`;
+  $('#planLabel').textContent = `MAPPED INBOUND → ${hardLabel.toUpperCase()}`;
   $('#planIn').textContent = fmt(c.pipeline + c.mappedWork);
-  $('#planCopy').textContent = `${fmt(c.pipeline)} pipeline + ${fmt(c.mappedWork)} planned / logged work by ${hardLabel}.`;
+  $('#planCopy').textContent = `${fmt(c.pipeline)} pipeline + ${fmt(c.mappedWork)} planned / logged work through the hard deadline. This is cycle-wide, not today’s duty.`;
   $('#taskNeed').textContent = state.settings.taskPayout && c.postPlanGap ? `${c.tasks}` : '—';
   $('#taskNeedCopy').textContent = state.settings.taskPayout ? (c.postPlanGap ? `${fmt(c.postPlanGap)} still unplanned at ${fmt(state.settings.taskPayout)} per full task.` : 'No unplanned gap after mapped inbound.') : 'Set task payout to derive task equivalents.';
   $('#monthEarned').textContent = fmt(c.loggedMonth);
   const delta = c.loggedMonth - c.previousMonth;
   $('#monthCopy').textContent = c.previousMonth ? `${delta >= 0 ? '+' : '−'}${fmt(Math.abs(delta))} versus the prior month’s logged work.` : 'Log completed earnings on any calendar day to start the run history.';
 }
-
 function renderBodyControls() {
   $$('[data-quantum]').forEach((button) => button.classList.toggle('active', Number(button.dataset.quantum) === quantum()));
   $$('[data-bodymode]').forEach((button) => button.classList.toggle('active', button.dataset.bodymode === state.settings.bodyMode));
@@ -680,7 +708,7 @@ function renderTerritories() {
       <span class="tk"><span>${config[1]}</span><span>${hasOverride(type) ? 'DIRECT TOTAL' : 'ITEM SUM'}</span></span>
       <h3>${config[0]}</h3><strong>${fmt(value)}</strong><p>${config[3]}</p>
       ${miniTiles(value, config[2])}
-      <small>${amountDescription(value, 25)} · ${spec.exact ? 'EXACT MAP' : 'TIGHT MAP'} · TUNE ↔</small>
+      <small>${amountDescription(value, quantum())} · ${spec.exact ? 'EXACT MAP' : 'TIGHT MAP'} · TUNE ↔</small>
     </button>`;
   }).join('');
 }
@@ -694,7 +722,7 @@ function renderExpenses() {
       <span class="ctop"><span>${E[item.type][0]}</span><span>${timing}</span></span>
       <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.amount)}</b>
       ${miniTiles(item.amount, color)}
-      <span class="cmeta"><span>${amountDescription(item.amount, 25)} · ${spec.exact ? 'exact evidence' : 'tight evidence'}</span><span>${item.cadence === 'monthly' ? 'recurring pressure' : 'single impact'}</span></span><span class="hint">TAP TO TUNE ↔</span>
+      <span class="cmeta"><span>${amountDescription(item.amount, quantum())} · ${spec.exact ? 'exact evidence' : 'tight evidence'}</span><span>${item.cadence === 'monthly' ? 'recurring pressure' : 'single impact'}</span></span><span class="hint">TAP TO TUNE ↔</span>
     </button>`;
   }).join('') : '<div class="empty">No obligations placed. Add rent, insurance, food/fuel, utilities, or one-off impact events.</div>';
 }
@@ -706,7 +734,7 @@ function renderDebts() {
       <span class="ctop"><span>DEBT DRAGON</span><span>${item.apr ? `${item.apr.toFixed(2)}% APR` : 'APR unspecified'}</span></span>
       <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.balance)}</b>
       ${miniTiles(item.balance, 'mass')}
-      <span class="cmeta"><span>${amountDescription(item.balance, 25)} · ${spec.exact ? 'exact mass' : 'tight mass'}</span><span>due day ${item.dueDay}</span></span>
+      <span class="cmeta"><span>${amountDescription(item.balance, quantum())} · ${spec.exact ? 'exact mass' : 'tight mass'}</span><span>due day ${item.dueDay}</span></span>
       <span class="hint">TAP BODY TO TUNE ↔</span>
       <div class="dragonbuttons">
         <button ${targetAttrs({ k: 'balance', id: item.id })} type="button">TUNE BODY<br>${fmt(item.balance)}</button>
@@ -758,6 +786,7 @@ function scheduleLedgerSizing() {
 }
 
 function render() {
+  applyColorway();
   renderStatus();
   renderBodyControls();
   renderBody();
@@ -768,6 +797,7 @@ function render() {
   renderDesires();
   scheduleLedgerSizing();
   save();
+  window.requestAnimationFrame(updateScrollTone);
 }
 
 function open(id) {
@@ -1014,6 +1044,7 @@ function settings() {
   $('#bodyModeInput').value = state.settings.bodyMode;
   $('#tailModeInput').value = state.settings.tailMode;
   $('#cardModeInput').value = state.settings.cardMode;
+  $('#colorwayInput').value = state.settings.colorway || 'spectrum';
   open('settingsSheet');
 }
 
@@ -1026,6 +1057,7 @@ function saveSettings(event) {
   state.settings.bodyMode = ['ledger', 'flow', 'exploded'].includes($('#bodyModeInput').value) ? $('#bodyModeInput').value : 'ledger';
   state.settings.tailMode = $('#tailModeInput').value === 'inline' ? 'inline' : 'stacked';
   state.settings.cardMode = $('#cardModeInput').value === 'compact' ? 'compact' : 'exact';
+  state.settings.colorway = ['spectrum', 'midnight', 'marker'].includes($('#colorwayInput').value) ? $('#colorwayInput').value : 'spectrum';
   state.isDemo = false;
   close('settingsSheet');
   render();
@@ -1123,9 +1155,9 @@ function init() {
   $('#taskBtn').onclick = settings;
   $('#todayPlanBtn').onclick = () => openDay(iso(today()));
   $('#cycleConfigBtn').onclick = settings;
-  $('#cleanBtn').onclick = () => { if (confirm('Start a clean board?')) { state = blank(); render(); } };
-  $('#loadDemoBtn').onclick = () => { if (confirm('Replace this local board with demo terrain? Export first if you want a backup.')) { state = demo(); render(); } };
-  $('#resetBtn').onclick = () => { if (confirm('Erase all local board data?')) { state = blank(); render(); } };
+  $('#protocolSettingsBtn').onclick = settings;
+  $('#settingsDemoBtn').onclick = () => { if (confirm('Replace this local board with demo terrain? Export first if you want a backup.')) { state = demo(); close('settingsSheet'); render(); } };
+  $('#settingsCleanBtn').onclick = () => { if (confirm('Start a clean board? This clears this browser’s local board.')) { state = blank(); close('settingsSheet'); render(); } };
 
   $('#bodyAddBtn').onclick = () => edit($('#bodyAddType').value);
   $$('[data-quantum]').forEach((button) => {
@@ -1167,7 +1199,8 @@ function init() {
   window.addEventListener('pointermove', move, { passive: false });
   window.addEventListener('pointerup', end);
   window.addEventListener('pointercancel', end);
-  window.addEventListener('resize', scheduleLedgerSizing);
+  window.addEventListener('resize', () => { scheduleLedgerSizing(); updateScrollTone(); });
+  window.addEventListener('scroll', () => window.requestAnimationFrame(updateScrollTone), { passive: true });
   document.addEventListener('click', click);
   document.addEventListener('keydown', keys);
   document.addEventListener('gesturestart', (event) => event.preventDefault(), { passive: false });
