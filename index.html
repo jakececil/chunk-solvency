@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#101321" />
+  <meta name="description" content="A local-first visual financial solvency instrument." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Chunk" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <title>Chunk — Solvency Instrument</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="grid-veil"></div>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand-lockup" role="banner">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        <div>
+          <p class="eyebrow">LOCAL FINANCIAL INSTRUMENT</p>
+          <h1>CHUNK <em>//</em> SOLVENCY</h1>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="quiet-button" id="exportBtn" title="Export a private backup file">Export</button>
+        <button class="quiet-button" id="importBtn" title="Import a previously exported backup">Import</button>
+        <input id="importInput" type="file" accept="application/json,.json" hidden />
+        <button class="icon-button" id="settingsBtn" aria-label="Open settings" title="Settings">⚙</button>
+      </div>
+    </header>
+
+    <section id="demoNotice" class="demo-notice" hidden>
+      <div>
+        <strong>DEMO TERRAIN IS LOADED.</strong>
+        <span>Everything visible is placeholder data. Replace it, or start from a clean board.</span>
+      </div>
+      <button class="mini-action" id="clearDemoBtn">Start clean</button>
+    </section>
+
+    <nav class="mode-switcher" aria-label="Instrument views">
+      <button class="mode-tab active" data-view="now">NOW</button>
+      <button class="mode-tab" data-view="flow">FLOW</button>
+      <button class="mode-tab" data-view="ledger">LEDGER</button>
+    </nav>
+
+    <section class="view active" id="view-now" data-view-panel="now">
+      <section class="signal-hero" aria-live="polite">
+        <div class="hero-copy">
+          <p class="eyebrow">OPERATING READOUT</p>
+          <h2 id="signalTitle">Mapping current position…</h2>
+          <p id="signalBody">The board is loading its terrain.</p>
+        </div>
+        <div class="signal-status" id="signalStatus">CALCULATING</div>
+      </section>
+
+      <section class="metric-grid" aria-label="Core financial metrics">
+        <article class="metric-card metric-liquid">
+          <p>Active cash</p>
+          <strong id="metricCash">—</strong>
+          <span id="metricCashMeta">Immediate liquid</span>
+        </article>
+        <article class="metric-card metric-wall">
+          <p>Monthly wall</p>
+          <strong id="metricWall">—</strong>
+          <span id="metricWallMeta">Essential + debt minimums</span>
+        </article>
+        <article class="metric-card metric-runway">
+          <p>Runway</p>
+          <strong id="metricRunway">—</strong>
+          <span id="metricRunwayMeta">Before active cash reaches zero</span>
+        </article>
+        <article class="metric-card metric-debt">
+          <p>Debt dragons</p>
+          <strong id="metricDebt">—</strong>
+          <span id="metricDebtMeta">Total remaining balance</span>
+        </article>
+      </section>
+
+      <section class="task-impact panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ONE MORE TASK</p>
+            <h3>What does a completed task actually change?</h3>
+          </div>
+          <button class="ghost-button" id="taskPayoutBtn">Adjust payout</button>
+        </div>
+        <div class="task-impact-grid">
+          <div class="impact-number"><span id="taskPayout">—</span><small>typical task payout</small></div>
+          <div class="impact-arrow" aria-hidden="true">→</div>
+          <div class="impact-copy" id="taskImpactText">Enter a task payout in Settings to see its exact impact.</div>
+        </div>
+      </section>
+
+      <section class="flow-preview panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">NEAR-FIELD THREAT MAP</p>
+            <h3>Next 30 days</h3>
+          </div>
+          <button class="ghost-button" data-jump-view="flow">Open full flow</button>
+        </div>
+        <div id="previewTimeline" class="mini-timeline"></div>
+      </section>
+
+      <section class="quick-actions" aria-label="Add a financial event">
+        <button class="action-card action-income" data-add="asset"><span>＋</span><b>Bring in money</b><small>Cash, pipeline, buffer, assets</small></button>
+        <button class="action-card action-expense" data-add="expense"><span>−</span><b>Add an obligation</b><small>Rent, food, bills, one-offs</small></button>
+        <button class="action-card action-debt" data-add="debt"><span>⌁</span><b>Feed a dragon</b><small>Track balance and minimums</small></button>
+      </section>
+    </section>
+
+    <section class="view" id="view-flow" data-view-panel="flow">
+      <section class="flow-header">
+        <div>
+          <p class="eyebrow">CONTINUOUS SOLVENCY FLOW</p>
+          <h2>Assets become time. Time meets obligations.</h2>
+          <p>Cooler territory is optional / less liquid. Warmer territory is already asking something of you.</p>
+        </div>
+        <button class="ghost-button" id="addFlowItemBtn">Add to flow</button>
+      </section>
+
+      <section class="flow-map panel">
+        <div class="flow-map-head">
+          <div class="legend"><span class="legend-dot cool"></span>OPTIONAL / SPECULATIVE</div>
+          <div class="legend"><span class="legend-dot warm"></span>ACTIVE / OWED</div>
+        </div>
+        <div id="liquidityLadder" class="liquidity-ladder"></div>
+        <div class="river-connector"><span></span><p>ACTIVE CURRENT</p><span></span></div>
+        <div id="timelineBoard" class="timeline-board"></div>
+        <div class="river-connector debt-connector"><span></span><p>TAIL-END OBLIGATIONS</p><span></span></div>
+        <div id="debtBoard" class="debt-board"></div>
+      </section>
+    </section>
+
+    <section class="view" id="view-ledger" data-view-panel="ledger">
+      <section class="ledger-header">
+        <div>
+          <p class="eyebrow">EDITABLE STATE</p>
+          <h2>Everything on the board has a handle.</h2>
+          <p>Tap an item to change it. State saves to this browser automatically.</p>
+        </div>
+        <button class="ghost-button" id="loadDemoBtn">Load demo terrain</button>
+      </section>
+
+      <section class="ledger-section panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">ASSET LAYERS</p><h3>What exists, and how reachable is it?</h3></div>
+          <button class="add-button" data-add="asset">Add asset</button>
+        </div>
+        <div id="assetLedger" class="ledger-list"></div>
+      </section>
+
+      <section class="ledger-section panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">OBLIGATIONS</p><h3>What is already coming for you?</h3></div>
+          <button class="add-button" data-add="expense">Add obligation</button>
+        </div>
+        <div id="expenseLedger" class="ledger-list"></div>
+      </section>
+
+      <section class="ledger-section panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">DEBT DRAGONS</p><h3>Balances that want a piece of every month.</h3></div>
+          <button class="add-button" data-add="debt">Add dragon</button>
+        </div>
+        <div id="debtLedger" class="ledger-list"></div>
+      </section>
+    </section>
+
+    <footer class="app-footer">
+      <span>LOCAL-ONLY STATE</span><i></i><span id="savedAt">Saved locally</span>
+    </footer>
+  </main>
+
+  <dialog id="editorDialog" class="editor-dialog">
+    <form id="editorForm" method="dialog">
+      <div class="dialog-head">
+        <div><p class="eyebrow" id="dialogEyebrow">NEW ITEM</p><h2 id="dialogTitle">Add to the board</h2></div>
+        <button type="button" class="icon-button" id="closeDialogBtn" aria-label="Close dialog">×</button>
+      </div>
+      <div id="editorFields" class="editor-fields"></div>
+      <div class="dialog-actions">
+        <button type="button" class="danger-button" id="deleteItemBtn" hidden>Delete</button>
+        <span></span>
+        <button type="button" class="quiet-button" id="cancelDialogBtn">Cancel</button>
+        <button type="submit" class="save-button">Save to board</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDialog" class="editor-dialog settings-dialog">
+    <form id="settingsForm" method="dialog">
+      <div class="dialog-head">
+        <div><p class="eyebrow">INSTRUMENT SETTINGS</p><h2>Calibrate the machine</h2></div>
+        <button type="button" class="icon-button" id="closeSettingsBtn" aria-label="Close settings">×</button>
+      </div>
+      <div class="editor-fields">
+        <label class="field"><span>Typical task payout</span><input id="settingTaskPayout" name="taskPayout" inputmode="decimal" type="number" min="0" step="1" /></label>
+        <label class="field"><span>Chunk size</span><input id="settingChunkSize" name="chunkSize" inputmode="decimal" type="number" min="25" step="25" /></label>
+        <label class="field"><span>Forecast horizon (days)</span><input id="settingForecastDays" name="forecastDays" inputmode="numeric" type="number" min="14" max="180" step="1" /></label>
+        <p class="helper-copy">Chunk size controls the visual tiles. It does not change any actual money math.</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="danger-button" id="resetAllBtn">Erase all local data</button>
+        <span></span>
+        <button type="button" class="quiet-button" id="cancelSettingsBtn">Cancel</button>
+        <button type="submit" class="save-button">Save settings</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="emptyStateTemplate">
+    <div class="empty-state"><strong>Nothing in this layer yet.</strong><span>Add the first item so the instrument has something to model.</span></div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
