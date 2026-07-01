@@ -9,8 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Chunk" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="styles.css?v=0.6.0" />
-  <title>CHUNK // SOLVENCY v0.6</title>
+  <link rel="stylesheet" href="styles.css?v=0.7.0" />
+  <title>CHUNK // SOLVENCY v0.7</title>
 </head>
 <body>
   <div class="grain"></div>
@@ -52,8 +52,9 @@
     </section>
 
     <section class="eventdeck" aria-label="Active current events">
-      <article class="eventcard gap"><span class="micro">CYCLE GAP / MINIMUM</span><strong id="cycleNeed">—</strong><small id="cycleCopy">Mapping the next hard cycle.</small></article>
-      <article class="eventcard plan"><span class="micro">SCHEDULED INBOUND</span><strong id="planIn">—</strong><small id="planCopy">Pipeline and day goals land here.</small></article>
+      <button class="eventcard duty" id="todayPlanBtn" type="button"><span class="micro">TODAY’S DUTY</span><strong id="todayDuty">—</strong><small id="todayDutyCopy">Tap to set today’s earning plan.</small></button>
+      <button class="eventcard gap" id="cycleConfigBtn" type="button"><span class="micro">CYCLE GAP / MINIMUM</span><strong id="cycleNeed">—</strong><small id="cycleCopy">Set the hard deadline in calibration.</small></button>
+      <article class="eventcard plan"><span class="micro">MAPPED INBOUND</span><strong id="planIn">—</strong><small id="planCopy">Pipeline plus planned / logged work by deadline.</small></article>
       <article class="eventcard tasks"><span class="micro">FULL TASKS LEFT</span><strong id="taskNeed">—</strong><small id="taskNeedCopy">Calibrate payout to derive task equivalents.</small></article>
       <article class="eventcard logged"><span class="micro">MONTHLY WORK LOG</span><strong id="monthEarned">—</strong><small id="monthCopy">Log completed earnings in the calendar.</small></article>
     </section>
@@ -67,12 +68,12 @@
         <div>
           <span class="index">00</span>
           <h2>THE CONTINUOUS BODY</h2>
-          <p>One exact visual organism. The default ledger treats every value as IN or OUT, pools sub-cell residue at each side’s tail, and leaves only one clean pressure boundary.</p>
+          <p>One exact visual organism. The default ledger separates IN above OUT: full cells stay in sequence, then each category’s distinct partial tail stacks at the end of its own side.</p>
         </div>
         <aside><span>RESOLUTION</span><strong id="quantum">—</strong></aside>
       </header>
 
-      <p class="instruction"><i></i><b>TAP ANY COLOR</b> to tune it. In / Out is the clean accounting mode: full cells stay with their category, while minor remainders collect at the far tail of each side.</p>
+      <p class="instruction"><i></i><b>TAP ANY COLOR</b> to tune it. In / Out is the macro read: full cells stay in order, then each category keeps its own colored partial tail at the far end of its side.</p>
 
       <section class="flowcontrols" aria-label="Continuous body controls">
         <div class="resolutioncontrol">
@@ -91,10 +92,17 @@
           </div>
         </div>
         <div class="tailcontrol">
-          <span class="micro">TAIL RESIDUE</span>
+          <span class="micro">TAIL PLACEMENT</span>
           <div class="segmented" role="group" aria-label="Tail behavior">
-            <button type="button" data-tailmode="collected">COLLECT</button>
-            <button type="button" data-tailmode="inline">INLINE</button>
+            <button type="button" data-tailmode="stacked">STACK AT END</button>
+            <button type="button" data-tailmode="inline">INLINE DETAIL</button>
+          </div>
+        </div>
+        <div class="cardcontrol">
+          <span class="micro">CARD EVIDENCE</span>
+          <div class="segmented" role="group" aria-label="Card evidence density">
+            <button type="button" data-cardmode="exact">EXACT</button>
+            <button type="button" data-cardmode="compact">TIGHT</button>
           </div>
         </div>
         <div class="addcontrol">
@@ -137,7 +145,7 @@
       <header class="sectionhead">
         <div>
           <span class="index">02</span><h2>LIQUIDITY TERRITORIES</h2>
-          <p>Five materially different kinds of money. These cards keep compact quarter-tile evidence; tap one to tune its real total.</p>
+          <p>Five materially different kinds of money. Cards can hold exact quarter-tile evidence or a tight summary; tap one to tune its real total.</p>
         </div>
         <button class="add" data-add="asset" type="button">+ PLACE MONEY</button>
       </header>
@@ -199,6 +207,8 @@
       <div class="valuebar"><span>EARNING GOAL</span><strong id="dayReadout">NO GOAL</strong></div>
       <label class="numberfield"><span>PLANNED GOAL</span><input id="dayInput" type="number" min="0" step="1" inputmode="decimal" /></label>
       <div class="dialrow"><button id="dayMinus" type="button">− <span id="dayStepMinus">$25</span></button><div id="dayDial" class="dial" tabindex="0"><span>←</span><b id="dayDialValue">DRAG</b><span>→</span><small>GOAL QUARTER STEPS</small></div><button id="dayPlus" type="button">+ <span id="dayStepPlus">$25</span></button></div>
+      <p id="daySuggestion" class="daysuggestion">Calculating the suggested daily pace.</p>
+      <button id="setSuggested" class="suggestbutton" type="button">USE SUGGESTED PACE</button>
       <div class="valuebar loggedbar"><span>CONFIRMED EARNED</span><strong id="earnedReadout">NOT LOGGED</strong></div>
       <label class="numberfield"><span>LOGGED EARNINGS</span><input id="earnedInput" type="number" min="0" step="1" inputmode="decimal" /></label>
       <div class="daytitle"><span>SCHEDULED ON THIS DAY</span><button id="clearGoal" type="button">CLEAR GOAL</button></div><div id="dayEvents" class="dayevents"></div>
@@ -219,14 +229,16 @@
         <label class="full"><span>Typical payout for one complete DA task</span><input id="taskPayoutInput" type="number" min="0" step="1" inputmode="decimal" /></label>
         <label><span>Body cell quantum</span><select id="cellQuantumInput"><option value="25">$25 per exact cell</option><option value="100">$100 per exact cell</option></select></label>
         <label><span>Time horizon (days)</span><input id="horizonInput" type="number" min="14" max="84" step="7" inputmode="numeric" /></label>
+        <label class="full"><span>Hard cycle deadline</span><input id="cycleDeadlineInput" type="date" /></label>
         <label class="full"><span>Default body view</span><select id="bodyModeInput"><option value="ledger">In / Out ledger</option><option value="flow">Detailed continuous flow</option><option value="exploded">Exploded territories</option></select></label>
-        <label class="full"><span>Default tail behavior</span><select id="tailModeInput"><option value="collected">Collect minor remainders at side tails</option><option value="inline">Keep every tail inline</option></select></label>
-        <p class="full">The default ledger keeps direct full cells attached to their category, then pools all small remainder matter at the far tail of IN and OUT. Direct tuning remains in $25 steps regardless of display resolution.</p>
+        <label class="full"><span>Default tail behavior</span><select id="tailModeInput"><option value="stacked">Stack each category’s own tail at the side end</option><option value="inline">Keep every tail inline</option></select></label>
+        <label class="full"><span>Card evidence density</span><select id="cardModeInput"><option value="exact">Exact maps (expand cards for large amounts)</option><option value="compact">Tight maps (cap visual cells)</option></select></label>
+        <p class="full">The default ledger keeps full cells attached to their category, then preserves each partial remainder as a separate colored cell at the side’s end. Direct tuning remains in $25 steps regardless of display resolution.</p>
       </div>
       <footer><span></span><i></i><button class="primary" type="submit">SAVE CALIBRATION</button></footer>
     </form>
   </aside>
 
-  <script src="app.js?v=0.6.0"></script>
+  <script src="app.js?v=0.7.0"></script>
 </body>
 </html>

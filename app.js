@@ -1,6 +1,6 @@
-const VERSION = 6;
-const KEY = 'chunk-solvency-v6';
-const OLD_KEYS = ['chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
+const VERSION = 7;
+const KEY = 'chunk-solvency-v7';
+const OLD_KEYS = ['chunk-solvency-v6', 'chunk-solvency-v5', 'chunk-solvency-v4', 'chunk-solvency-v3', 'chunk-solvency-v2', 'chunk-solvency-v1'];
 
 const A = {
   hardAsset: ['Hard assets', 'HARD ASSET', 'hard', 'Sellable possessions. Least liquid.'],
@@ -48,6 +48,15 @@ const parse = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? new Date(`${v
 const label = (date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
 const wk = (date) => new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date).toUpperCase();
 const tuneStep = () => 25;
+const nextCycleISO = () => {
+  const base = today();
+  return iso(new Date(base.getFullYear(), base.getMonth() + 1, 1, 12));
+};
+const safeCycleISO = (value) => {
+  const candidate = parse(value);
+  const start = today();
+  return candidate && candidate >= start ? iso(candidate) : nextCycleISO();
+};
 
 let state;
 let quick = null;
@@ -68,7 +77,9 @@ function blank() {
       cellQuantum: 100,
       forecastDays: 28,
       bodyMode: 'ledger',
-      tailMode: 'collected',
+      tailMode: 'stacked',
+      cardMode: 'exact',
+      cycleDeadline: nextCycleISO(),
       hiddenSegments: {}
     },
     territoryTotals: {},
@@ -86,7 +97,7 @@ function demo() {
   return {
     version: VERSION,
     isDemo: true,
-    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'collected', hiddenSegments: {} },
+    settings: { taskPayout: 66, cellQuantum: 100, forecastDays: 28, bodyMode: 'ledger', tailMode: 'stacked', cardMode: 'exact', cycleDeadline: nextCycleISO(), hiddenSegments: {} },
     territoryTotals: {},
     calendarGoals: {},
     earningsLog: {},
@@ -136,8 +147,11 @@ function normalize(input) {
   });
 
   const legacyBeforeSix = n(source.version, 0) < 6;
+  const legacyBeforeSeven = n(source.version, 0) < 7;
   const migratedQuantum = legacyBeforeSix ? 100 : (source.settings?.cellQuantum ?? (source.settings?.chunkSize ? Math.max(25, Math.round(n(source.settings.chunkSize) / 4)) : 100));
   const cellQuantum = Number(migratedQuantum) === 100 ? 100 : 25;
+  const cycleDeadline = safeCycleISO(source.settings?.cycleDeadline);
+  const cardMode = source.settings?.cardMode === 'compact' ? 'compact' : 'exact';
 
   return {
     version: VERSION,
@@ -147,7 +161,9 @@ function normalize(input) {
       cellQuantum,
       forecastDays: clamp(Math.round(n(source.settings?.forecastDays, 28) / 7) * 7, 14, 84),
       bodyMode: legacyBeforeSix ? 'ledger' : (['ledger', 'flow', 'exploded'].includes(source.settings?.bodyMode) ? source.settings.bodyMode : 'ledger'),
-      tailMode: legacyBeforeSix ? 'collected' : (source.settings?.tailMode === 'inline' ? 'inline' : 'collected'),
+      tailMode: legacyBeforeSeven ? 'stacked' : (source.settings?.tailMode === 'inline' ? 'inline' : 'stacked'),
+      cardMode,
+      cycleDeadline,
       hiddenSegments: Object.fromEntries(Object.entries(hiddenSegments).filter(([, hidden]) => !!hidden))
     },
     territoryTotals,
@@ -221,6 +237,15 @@ const loggedInRange = (start, end) => Object.entries(state.earningsLog || {}).re
   const date = parse(key);
   return date && date >= start && date <= end ? total + nn(value) : total;
 }, 0);
+const mappedWorkInRange = (start, end) => {
+  const keys = new Set([...Object.keys(state.calendarGoals || {}), ...Object.keys(state.earningsLog || {})]);
+  return [...keys].reduce((total, key) => {
+    const date = parse(key);
+    if (!date || date < start || date > end) return total;
+    // A logged day replaces, rather than doubles, that day’s planned goal.
+    return total + Math.max(nn(state.calendarGoals[key]), nn(state.earningsLog[key]));
+  }, 0);
+};
 const segmentId = (target) => `${target.k}:${target.id || ''}`;
 const isVisible = (target) => !state.settings.hiddenSegments[segmentId(target)];
 
@@ -289,32 +314,34 @@ function projection(options = {}) {
 }
 
 function hardCycle() {
-  const start = today();
-  const recurring = state.expenses.filter((item) => item.cadence === 'monthly');
-  const anchor = [...recurring].sort((left, right) => right.amount - left.amount)[0];
-  const fallback = events(42).find((event) => event.kind === 'expense' || event.kind === 'debt');
-  if (anchor) {
-    const dates = monthly(anchor.dueDay, start, add(start, 62));
-    const date = dates.find((entry) => entry >= start) || add(start, 30);
-    return { date, label: anchor.name };
-  }
-  return fallback ? { date: fallback.date, label: fallback.name } : { date: add(start, 30), label: '30-day horizon' };
+  const date = parse(safeCycleISO(state.settings.cycleDeadline));
+  return { date, label: 'hard monthly cycle' };
 }
 
 function campaign() {
   const start = today();
   const cycle = hardCycle();
-  const out = events(Math.max(1, Math.round((cycle.date - start) / 86400000) + 1))
+  const daysRemaining = Math.max(1, Math.round((cycle.date - start) / 86400000) + 1);
+  const horizon = daysRemaining;
+  const windowEvents = events(horizon);
+  const out = windowEvents
     .filter((event) => event.kind === 'expense' || event.kind === 'debt')
     .reduce((total, event) => total + event.amount, 0);
-  const pipeline = events(Math.max(1, Math.round((cycle.date - start) / 86400000) + 1))
+  const pipeline = windowEvents
     .filter((event) => event.kind === 'income')
     .reduce((total, event) => total + event.effective, 0);
-  const goals = goalInRange(start, cycle.date);
+  const mappedWork = mappedWorkInRange(start, cycle.date);
   const rawGap = Math.max(0, out - total('cash'));
-  const postPlanGap = Math.max(0, rawGap - pipeline - goals);
+  const postPlanGap = Math.max(0, rawGap - pipeline - mappedWork);
   const tasks = state.settings.taskPayout > 0 ? Math.ceil(postPlanGap / state.settings.taskPayout) : 0;
-  return { cycle, out, pipeline, goals, rawGap, postPlanGap, tasks, loggedMonth: loggedInMonth(), previousMonth: loggedInMonth(-1) };
+  const dailySuggested = postPlanGap > 0 ? Math.ceil((postPlanGap / daysRemaining) / tuneStep()) * tuneStep() : 0;
+  const todayGoal = nn(state.calendarGoals[iso(start)]);
+  const todayLogged = nn(state.earningsLog[iso(start)]);
+  return {
+    cycle, out, pipeline, mappedWork, rawGap, postPlanGap, tasks, daysRemaining,
+    dailySuggested, todayGoal, todayLogged,
+    loggedMonth: loggedInMonth(), previousMonth: loggedInMonth(-1)
+  };
 }
 
 function targetAttrs(target) {
@@ -400,7 +427,7 @@ function visualUnits(amount, unit = quantum()) {
 function amountDescription(amount, unit = quantum()) {
   const visual = visualUnits(amount, unit);
   const whole = visual.full === 1 ? 'cell' : 'cells';
-  const tail = visual.tail ? ` + ${(visual.tail * 100).toFixed(0)}% tail` : '';
+  const tail = visual.tail ? ' + tail' : '';
   return `${visual.full} ${whole}${tail}`;
 }
 
@@ -427,29 +454,39 @@ function bodyCells(segment, options = {}) {
   return parts.join('');
 }
 
-function residueCells(amount, side, extraClass = '') {
-  const unit = quantum();
-  const visual = visualUnits(amount, unit);
-  const tint = side === 'in' ? 'var(--lime)' : 'var(--flex)';
-  const parts = [];
-  const title = `${side === 'in' ? 'IN' : 'OUT'} residue: ${fmt(amount)} across collected tails. This is an accounting remainder, not a separate category.`;
-  for (let index = 0; index < visual.full; index += 1) parts.push(`<span class="bodycell residue ${extraClass}" style="--c:${tint};--fill:1" title="${esc(title)}"></span>`);
-  if (visual.tail > 0) parts.push(`<span class="bodycell residue partial ${extraClass}" style="--c:${tint};--fill:${visual.tail}" title="${esc(title)}"></span>`);
-  return parts.join('');
+function stackedTailCell(segment, extraClass = '') {
+  const visual = visualUnits(segment.amount, quantum());
+  if (!visual.tail) return '';
+  const title = `${segment.name}: retained tail ${fmt(segment.amount % quantum())}. Tap to tune.`;
+  return `<button class="bodycell partial tailstack ${extraClass}" style="--c:${COLOR[segment.color]};--fill:${visual.tail}" title="${esc(title)}" ${targetAttrs(segment.target)} type="button"></button>`;
 }
 
-function miniTiles(amount, color, maxCells = 48) {
+function cardSpec(amount) {
+  const exact = state.settings.cardMode !== 'compact';
+  const totalCells = Math.ceil(nn(amount) / 25);
+  return {
+    exact,
+    maxCells: exact ? 480 : 48,
+    wide: exact && nn(amount) >= 800,
+    totalCells
+  };
+}
+
+function miniTiles(amount, color) {
+  const spec = cardSpec(amount);
   const visual = visualUnits(amount, 25);
   const pieces = [];
-  const complete = Math.min(visual.full, maxCells);
+  const complete = Math.min(visual.full, spec.maxCells);
   for (let index = 0; index < complete; index += 1) pieces.push('<i style="--fill:1"></i>');
-  if (visual.full < maxCells && visual.tail > 0) pieces.push(`<i class="partial" style="--fill:${visual.tail}"></i>`);
-  const totalCells = visual.full + (visual.tail ? 1 : 0);
-  if (totalCells > maxCells) pieces.push(`<span class="more">+${totalCells - maxCells}</span>`);
-  return `<div class="minitiles c-${color}" aria-label="${esc(amountDescription(amount, 25))}">${pieces.join('')}</div>`;
+  if (visual.full < spec.maxCells && visual.tail > 0) pieces.push(`<i class="partial" style="--fill:${visual.tail}"></i>`);
+  const renderedCells = visual.full + (visual.tail ? 1 : 0);
+  if (renderedCells > spec.maxCells) pieces.push(`<span class="more">+${renderedCells - spec.maxCells}</span>`);
+  return `<div class="minitiles c-${color} ${spec.exact ? 'exact' : 'compact'}" aria-label="${esc(amountDescription(amount, 25))}">${pieces.join('')}</div>`;
 }
 
-function hollowTiles(saved, target, maxCells = 48) {
+function hollowTiles(saved, target) {
+  const exact = state.settings.cardMode !== 'compact';
+  const maxCells = exact ? 480 : 48;
   const targetCells = Math.max(1, Math.ceil(nn(target) / 25));
   const visible = Math.min(targetCells, maxCells);
   const savedVisual = visualUnits(saved, 25);
@@ -463,7 +500,7 @@ function hollowTiles(saved, target, maxCells = 48) {
     parts.push(`<i class="${className}" style="--fill:${fill}"></i>`);
   }
   if (targetCells > maxCells) parts.push(`<span class="more">+${targetCells - maxCells}</span>`);
-  return `<div class="hollowtiles" aria-label="${esc(`${fmt(saved)} reserved of ${fmt(target)} target`)}">${parts.join('')}</div>`;
+  return `<div class="hollowtiles ${exact ? 'exact' : 'compact'}" aria-label="${esc(`${fmt(saved)} reserved of ${fmt(target)} target`)}">${parts.join('')}</div>`;
 }
 
 function renderStatus() {
@@ -503,10 +540,18 @@ function renderStatus() {
 }
 
 function renderCampaign(c) {
+  const hardLabel = label(c.cycle.date);
+  const todayCopy = c.todayGoal
+    ? `${fmt(c.todayGoal)} planned today · ${state.settings.taskPayout ? `${Math.max(1, Math.ceil(c.todayGoal / state.settings.taskPayout))} task equivalent${Math.ceil(c.todayGoal / state.settings.taskPayout) === 1 ? '' : 's'}` : 'tap to adjust'}`
+    : c.dailySuggested
+      ? `Suggested ${fmt(c.dailySuggested)} today to close ${fmt(c.postPlanGap)} by ${hardLabel}.`
+      : `No daily target needed from the current mapped cycle.`;
+  $('#todayDuty').textContent = c.todayGoal ? fmt(c.todayGoal) : (c.dailySuggested ? fmt(c.dailySuggested) : 'CLEAR');
+  $('#todayDutyCopy').textContent = todayCopy;
   $('#cycleNeed').textContent = fmt(c.rawGap);
-  $('#cycleCopy').textContent = c.rawGap ? `${fmt(c.out)} due through ${label(c.cycle.date)} · ${c.cycle.label}` : `True cash clears the mapped cycle through ${label(c.cycle.date)}.`;
-  $('#planIn').textContent = fmt(c.pipeline + c.goals);
-  $('#planCopy').textContent = `${fmt(c.pipeline)} pipeline + ${fmt(c.goals)} day goals through the cycle.`;
+  $('#cycleCopy').textContent = c.rawGap ? `${fmt(c.out)} due by ${hardLabel} · ${c.daysRemaining} day${c.daysRemaining === 1 ? '' : 's'} remain.` : `True cash clears the hard cycle through ${hardLabel}.`;
+  $('#planIn').textContent = fmt(c.pipeline + c.mappedWork);
+  $('#planCopy').textContent = `${fmt(c.pipeline)} pipeline + ${fmt(c.mappedWork)} planned / logged work by ${hardLabel}.`;
   $('#taskNeed').textContent = state.settings.taskPayout && c.postPlanGap ? `${c.tasks}` : '—';
   $('#taskNeedCopy').textContent = state.settings.taskPayout ? (c.postPlanGap ? `${fmt(c.postPlanGap)} still unplanned at ${fmt(state.settings.taskPayout)} per full task.` : 'No unplanned gap after mapped inbound.') : 'Set task payout to derive task equivalents.';
   $('#monthEarned').textContent = fmt(c.loggedMonth);
@@ -518,6 +563,7 @@ function renderBodyControls() {
   $$('[data-quantum]').forEach((button) => button.classList.toggle('active', Number(button.dataset.quantum) === quantum()));
   $$('[data-bodymode]').forEach((button) => button.classList.toggle('active', button.dataset.bodymode === state.settings.bodyMode));
   $$('[data-tailmode]').forEach((button) => button.classList.toggle('active', button.dataset.tailmode === state.settings.tailMode));
+  $$('[data-cardmode]').forEach((button) => button.classList.toggle('active', button.dataset.cardmode === state.settings.cardMode));
   $('#quantum').textContent = `${fmt(quantum())} / CELL`;
 }
 
@@ -557,40 +603,36 @@ function renderBody() {
         ${segment.amount > 0 ? `<div class="bodygrid" style="--cols:${columns}">${bodyCells(segment)}</div>` : '<div class="explodedzero">ZERO · READY</div>'}
       </article>`;
     }).join('') || '<div class="empty">Everything is hidden. Turn a segment ON in the tuning key to restore it.</div>';
-    $('#bodyCaption').textContent = `EXPLODED VIEW · each selected territory becomes a clean contained rectangle. The exact tail remains physically proportional.`;
+    $('#bodyCaption').textContent = 'EXPLODED VIEW · each visible category becomes a clean contained rectangle. Use this to read territory scale without the macro flow.';
     return;
   }
 
-  grid.className = 'bodygrid';
   if (state.settings.bodyMode === 'flow') {
+    grid.className = 'bodygrid';
     grid.innerHTML = activeSegments.map((segment) => bodyCells(segment)).join('');
-    $('#bodyCaption').textContent = `DETAILED FLOW · every category retains its own exact tail in sequence. Use IN / OUT to collect all small remainders at the end of each side.`;
+    $('#bodyCaption').textContent = 'DETAILED FLOW · every category retains its own exact tail inline, in its original sequence.';
     return;
   }
 
   const inSegments = activeSegments.filter((segment) => segment.side === 'in');
   const outSegments = activeSegments.filter((segment) => segment.side === 'out');
-  const buildSide = (sideSegments, side, boundary = false) => {
-    let remainder = 0;
-    let html = '';
-    sideSegments.forEach((segment) => {
-      if (state.settings.tailMode === 'collected') {
-        html += bodyCells(segment, { includeTail: false });
-        remainder += segment.amount % quantum();
-      } else {
-        html += bodyCells(segment);
-      }
-    });
-    if (state.settings.tailMode === 'collected' && remainder > 0) html += residueCells(remainder, side);
-    if (boundary && html) html = html.replace('class="bodycell', 'class="bodycell inout-start');
-    return html;
+  const sideAmount = (list) => list.reduce((sum, item) => sum + item.amount, 0);
+  const buildLine = (labelText, side, sideSegments) => {
+    const full = sideSegments.map((segment) => bodyCells(segment, { includeTail: false })).join('');
+    const tails = state.settings.tailMode === 'stacked'
+      ? sideSegments.map((segment) => stackedTailCell(segment)).join('')
+      : sideSegments.map((segment) => bodyCells(segment)).join('');
+    const cells = state.settings.tailMode === 'stacked' ? `${full}${tails}` : tails;
+    return `<section class="ledgerline ${side}">
+      <header><span>${labelText}</span><b>${fmt(sideAmount(sideSegments))}</b><small>${state.settings.tailMode === 'stacked' ? 'FULL CELLS → DISCRETE TAILS' : 'EVERY TAIL INLINE'}</small></header>
+      <div class="bodygrid">${cells || '<div class="empty">ZERO VISIBLE MATTER</div>'}</div>
+    </section>`;
   };
-  const inHtml = buildSide(inSegments, 'in');
-  const outHtml = buildSide(outSegments, 'out', !!inHtml);
-  grid.innerHTML = `${inHtml}${outHtml}` || '<div class="empty">No visible matter in the selected sides.</div>';
-  $('#bodyCaption').textContent = state.settings.tailMode === 'collected'
-    ? `IN / OUT LEDGER · full ${fmt(quantum())} cells remain attached to their category. Every sub-cell remainder is pooled at the tail of its side, leaving one clean boundary with no accounting voids.`
-    : `IN / OUT LEDGER · categories remain in their side, but every fractional tail stays inline instead of collecting at the side’s end.`;
+  grid.className = 'ledgerbody';
+  grid.innerHTML = `${buildLine('IN', 'in', inSegments)}${buildLine('OUT', 'out', outSegments)}`;
+  $('#bodyCaption').textContent = state.settings.tailMode === 'stacked'
+    ? `IN / OUT LEDGER · each category’s full ${fmt(quantum())} cells stay in sequence. Every partial remnant is then retained as its own colored tail at the end of its own side.`
+    : 'IN / OUT LEDGER · every category—including its partial tail—stays inline. Switch to STACK AT END when you want the clean macro read.';
 }
 
 function renderTime() {
@@ -621,7 +663,7 @@ function renderTime() {
     </button>`);
   }
   $('#timeGrid').innerHTML = cells.join('');
-  $('#timeStart').textContent = `${label(start)} / now`;
+  $('#timeStart').textContent = `TODAY · ${wk(start)} ${label(start)}`;
   $('#timeEnd').textContent = `${label(add(start, state.settings.forecastDays - 1))} / horizon`;
 }
 
@@ -629,11 +671,12 @@ function renderTerritories() {
   $('#territories').innerHTML = ORDER.map((type) => {
     const config = A[type];
     const value = total(type);
-    return `<button class="territory c-${config[2]}" ${targetAttrs({ k: 'territory', id: type })} type="button">
+    const spec = cardSpec(value);
+    return `<button class="territory c-${config[2]} ${spec.wide ? 'wide' : ''}" ${targetAttrs({ k: 'territory', id: type })} type="button">
       <span class="tk"><span>${config[1]}</span><span>${hasOverride(type) ? 'DIRECT TOTAL' : 'ITEM SUM'}</span></span>
       <h3>${config[0]}</h3><strong>${fmt(value)}</strong><p>${config[3]}</p>
-      ${miniTiles(value, config[2], 32)}
-      <small>${amountDescription(value, 25)} · TUNE ↔</small>
+      ${miniTiles(value, config[2])}
+      <small>${amountDescription(value, 25)} · ${spec.exact ? 'EXACT MAP' : 'TIGHT MAP'} · TUNE ↔</small>
     </button>`;
   }).join('');
 }
@@ -642,36 +685,42 @@ function renderExpenses() {
   $('#expenses').innerHTML = state.expenses.length ? state.expenses.map((item) => {
     const timing = item.cadence === 'monthly' ? `monthly · day ${item.dueDay}` : `one-off · ${item.dueDate ? label(parse(item.dueDate)) : 'date needed'}`;
     const color = E[item.type][1];
-    return `<button class="card c-${color}" ${targetAttrs({ k: 'expense', id: item.id })} type="button">
+    const spec = cardSpec(item.amount);
+    return `<button class="card c-${color} ${spec.wide ? 'wide' : ''}" ${targetAttrs({ k: 'expense', id: item.id })} type="button">
       <span class="ctop"><span>${E[item.type][0]}</span><span>${timing}</span></span>
       <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.amount)}</b>
       ${miniTiles(item.amount, color)}
-      <span class="cmeta"><span>${amountDescription(item.amount, 25)}</span><span>${item.cadence === 'monthly' ? 'recurring pressure' : 'single impact'}</span></span><span class="hint">TAP TO TUNE ↔</span>
+      <span class="cmeta"><span>${amountDescription(item.amount, 25)} · ${spec.exact ? 'exact evidence' : 'tight evidence'}</span><span>${item.cadence === 'monthly' ? 'recurring pressure' : 'single impact'}</span></span><span class="hint">TAP TO TUNE ↔</span>
     </button>`;
   }).join('') : '<div class="empty">No obligations placed. Add rent, insurance, food/fuel, utilities, or one-off impact events.</div>';
 }
 
 function renderDebts() {
-  $('#debts').innerHTML = state.debts.length ? state.debts.map((item) => `<article class="card c-debt dragoncard" ${targetAttrs({ k: 'balance', id: item.id })}>
-    <span class="ctop"><span>DEBT DRAGON</span><span>${item.apr ? `${item.apr.toFixed(2)}% APR` : 'APR unspecified'}</span></span>
-    <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.balance)}</b>
-    ${miniTiles(item.balance, 'mass')}
-    <span class="cmeta"><span>${amountDescription(item.balance, 25)}</span><span>due day ${item.dueDay}</span></span>
-    <div class="dragonbuttons">
-      <button ${targetAttrs({ k: 'balance', id: item.id })} type="button">TUNE BODY<br>${fmt(item.balance)}</button>
-      <button ${targetAttrs({ k: 'minimum', id: item.id })} type="button">TUNE MINIMUM<br>${fmt(item.minPayment)}</button>
-    </div>
-  </article>`).join('') : '<div class="empty">No dragons placed. Add a debt account to make its full mass and monthly bite visible.</div>';
+  $('#debts').innerHTML = state.debts.length ? state.debts.map((item) => {
+    const spec = cardSpec(item.balance);
+    return `<article class="card c-debt dragoncard ${spec.wide ? 'wide' : ''}" ${targetAttrs({ k: 'balance', id: item.id })} role="button" tabindex="0" aria-label="Tune ${esc(item.name)} debt body">
+      <span class="ctop"><span>DEBT DRAGON</span><span>${item.apr ? `${item.apr.toFixed(2)}% APR` : 'APR unspecified'}</span></span>
+      <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.balance)}</b>
+      ${miniTiles(item.balance, 'mass')}
+      <span class="cmeta"><span>${amountDescription(item.balance, 25)} · ${spec.exact ? 'exact mass' : 'tight mass'}</span><span>due day ${item.dueDay}</span></span>
+      <span class="hint">TAP BODY TO TUNE ↔</span>
+      <div class="dragonbuttons">
+        <button ${targetAttrs({ k: 'balance', id: item.id })} type="button">TUNE BODY<br>${fmt(item.balance)}</button>
+        <button ${targetAttrs({ k: 'minimum', id: item.id })} type="button">TUNE MINIMUM<br>${fmt(item.minPayment)}</button>
+      </div>
+    </article>`;
+  }).join('') : '<div class="empty">No dragons placed. Add a debt account to make its full mass and monthly bite visible.</div>';
 }
 
 function renderDesires() {
   $('#desires').innerHTML = state.desires.length ? state.desires.map((item) => {
     const percentage = item.target ? clamp(item.saved / item.target * 100, 0, 100) : 0;
-    return `<button class="card c-invest" ${targetAttrs({ k: 'saved', id: item.id })} type="button">
+    const spec = cardSpec(item.target || item.saved);
+    return `<button class="card c-invest ${spec.wide ? 'wide' : ''}" ${targetAttrs({ k: 'saved', id: item.id })} type="button">
       <span class="ctop"><span>TRACKED DESIRE</span><span>${Math.round(percentage)}%</span></span>
       <strong class="cname">${esc(item.name)}</strong><b class="camount">${fmt(item.saved)} <small>/ ${fmt(item.target)}</small></b>
       ${hollowTiles(item.saved, item.target)}
-      <span class="cmeta"><span>${esc(item.notes || 'A bounded place for something alive.')}</span></span><span class="hint">TAP TO TUNE ↔</span>
+      <span class="cmeta"><span>${esc(item.notes || 'A bounded place for something alive.')}</span><span>${spec.exact ? 'exact target map' : 'tight target map'}</span></span><span class="hint">TAP TO TUNE ↔</span>
     </button>`;
   }).join('') : '<div class="empty">No sanctioned life tracks yet. Books, tools, toys, travel, food pleasures, and weirdness can all have a bounded address here.</div>';
 }
@@ -798,6 +847,12 @@ function openDay(key) {
   $('#dayStepMinus').textContent = fmt(tuneStep());
   $('#dayStepPlus').textContent = fmt(tuneStep());
   $('#dayInput').step = tuneStep();
+  const c = campaign();
+  const isToday = key === iso(today());
+  $('#daySuggestion').textContent = c.dailySuggested
+    ? `${isToday ? 'Suggested duty today' : 'Suggested daily pace'}: ${fmt(c.dailySuggested)} to close ${fmt(c.postPlanGap)} by ${label(c.cycle.date)}.`
+    : `Current mapped plan has no remaining daily minimum through ${label(c.cycle.date)}.`;
+  $('#setSuggested').hidden = !c.dailySuggested;
   syncDay(state.calendarGoals[key] || 0);
   syncEarned(state.earningsLog[key] || 0);
   const dayEvents = events().filter((event) => iso(event.date) === key && !['goal', 'logged'].includes(event.kind));
@@ -922,8 +977,10 @@ function settings() {
   $('#taskPayoutInput').value = state.settings.taskPayout;
   $('#cellQuantumInput').value = quantum();
   $('#horizonInput').value = state.settings.forecastDays;
+  $('#cycleDeadlineInput').value = safeCycleISO(state.settings.cycleDeadline);
   $('#bodyModeInput').value = state.settings.bodyMode;
   $('#tailModeInput').value = state.settings.tailMode;
+  $('#cardModeInput').value = state.settings.cardMode;
   open('settingsSheet');
 }
 
@@ -932,8 +989,10 @@ function saveSettings(event) {
   state.settings.taskPayout = nn($('#taskPayoutInput').value);
   state.settings.cellQuantum = Number($('#cellQuantumInput').value) === 100 ? 100 : 25;
   state.settings.forecastDays = clamp(Math.round(n($('#horizonInput').value, 28) / 7) * 7, 14, 84);
+  state.settings.cycleDeadline = safeCycleISO($('#cycleDeadlineInput').value);
   state.settings.bodyMode = ['ledger', 'flow', 'exploded'].includes($('#bodyModeInput').value) ? $('#bodyModeInput').value : 'ledger';
-  state.settings.tailMode = $('#tailModeInput').value === 'inline' ? 'inline' : 'collected';
+  state.settings.tailMode = $('#tailModeInput').value === 'inline' ? 'inline' : 'stacked';
+  state.settings.cardMode = $('#cardModeInput').value === 'compact' ? 'compact' : 'exact';
   state.isDemo = false;
   close('settingsSheet');
   render();
@@ -1011,6 +1070,7 @@ function click(event) {
 }
 
 function keys(event) {
+  if ((event.key === 'Enter' || event.key === ' ') && event.target?.matches?.('.dragoncard[data-k]')) { event.preventDefault(); openQuick({ k: event.target.dataset.k, id: event.target.dataset.id }); }
   if (event.key === 'Escape') close();
   if (event.target === $('#quickDial')) {
     if (event.key === 'ArrowLeft') syncQuick(qDraft - tuneStep());
@@ -1028,6 +1088,8 @@ function init() {
   $('#importInput').onchange = (event) => importBoard(event.target.files[0]);
   $('#settingsBtn').onclick = settings;
   $('#taskBtn').onclick = settings;
+  $('#todayPlanBtn').onclick = () => openDay(iso(today()));
+  $('#cycleConfigBtn').onclick = settings;
   $('#cleanBtn').onclick = () => { if (confirm('Start a clean board?')) { state = blank(); render(); } };
   $('#loadDemoBtn').onclick = () => { if (confirm('Replace this local board with demo terrain? Export first if you want a backup.')) { state = demo(); render(); } };
   $('#resetBtn').onclick = () => { if (confirm('Erase all local board data?')) { state = blank(); render(); } };
@@ -1040,7 +1102,10 @@ function init() {
     button.onclick = () => { state.settings.bodyMode = ['ledger', 'flow', 'exploded'].includes(button.dataset.bodymode) ? button.dataset.bodymode : 'ledger'; state.isDemo = false; render(); };
   });
   $$('[data-tailmode]').forEach((button) => {
-    button.onclick = () => { state.settings.tailMode = button.dataset.tailmode === 'inline' ? 'inline' : 'collected'; state.isDemo = false; render(); };
+    button.onclick = () => { state.settings.tailMode = button.dataset.tailmode === 'inline' ? 'inline' : 'stacked'; state.isDemo = false; render(); };
+  });
+  $$('[data-cardmode]').forEach((button) => {
+    button.onclick = () => { state.settings.cardMode = button.dataset.cardmode === 'compact' ? 'compact' : 'exact'; state.isDemo = false; render(); };
   });
 
   $('#quickInput').oninput = (event) => syncQuick(event.target.value);
@@ -1055,6 +1120,7 @@ function init() {
   $('#dayMinus').onclick = () => syncDay(dayDraft - tuneStep());
   $('#dayPlus').onclick = () => syncDay(dayDraft + tuneStep());
   $('#clearGoal').onclick = () => syncDay(0);
+  $('#setSuggested').onclick = () => syncDay(campaign().dailySuggested);
   $('#saveDay').onclick = saveDay;
   $('#addIncomeDay').onclick = () => { const key = dayKey; close('daySheet'); edit('asset', null, { type: 'pipeline', expectedDate: key }); };
   $('#addExpenseDay').onclick = () => { const key = dayKey; close('daySheet'); edit('expense', null, { cadence: 'oneoff', dueDate: key }); };

@@ -1,34 +1,30 @@
-# CHUNK // SOLVENCY v0.6
+# CHUNK // SOLVENCY v0.7
 
-A private, local-first financial visualization that turns money into editable physical matter. Version 0.6 adds the **IN / OUT ledger**: full $100 (or $25) cells remain tied to their source category, while all small remainders can be collected at the tail of each side for a clean comparison without blank accounting voids.
+A private, local-first, phone-installable solvency board. This release focuses on macro legibility: a two-line IN / OUT ledger, discrete retained tails, a configurable hard-cycle deadline, daily duty planning, and exact expandable evidence maps on cards.
 
-## What changed
+## What changed in v0.7
 
-- **Default quantum is now $100/cell.** Switch to $25 for closer inspection at any time.
-- **IN / OUT is the default Continuous Body mode.** Every visible segment is classified as incoming matter or outgoing pressure. The first OUT cell gets a hard visual boundary without consuming a blank cell.
-- **Collect / Inline tail switch.** Collected is the default; all small non-full remainders pool at the far end of IN or OUT. Inline retains the detailed fractional-tail behavior.
-- **Expanded current-events deck:** cycle gap, scheduled inbound, full task equivalents, and a month-by-month work log.
-- **Calendar goals now affect plan metadata.** Planned daily targets appear in Scheduled Inbound and task-equivalent calculations.
-- **Log confirmed earnings on any day.** This creates a durable monthly work-history metric. It deliberately does not auto-increase True Cash—update cash when the money actually lands.
-- **Debt dragon cards are fully clickable.** Tap the card to tune the body; the two buttons still target body and minimum separately.
-- **All zero anchors remain in the key.** $0 is a valid state, not deletion.
+- **Two-line ledger:** IN is its own continuous row; OUT is the row below. There is no fake divider void inside either mass.
+- **Discrete stacked tails:** at $100/cell, every category keeps its own small remainder as a distinct colored partial cell at the far end of IN or OUT. The app no longer fuses all tails into one anonymous residue color.
+- **Hard monthly cycle:** default deadline is the next first of the month. Change it in `SETTINGS → Hard cycle deadline`. Campaign math, scheduled inbound, daily recommendation, and task equivalents now all refer to that same date.
+- **Today’s Duty:** top-left current-event card opens today’s calendar square. It shows a real daily target when you set one, or a suggested pace to close the unmapped gap by the chosen deadline.
+- **Exact / Tight cards:** exact mode (the default) expands large cards and shows all $25 evidence cells, up through a safe high cap. Tight mode restores compact capped card maps.
 
-## Update path
+## Updating from v0.6
 
-1. Export a JSON backup from the currently deployed app once you have meaningful numbers.
-2. Unzip this release.
-3. Copy the **contents inside** `chunk-solvency-v0.6` into the existing local `chunk-solvency` Git repository. Do not copy the outer folder itself.
-4. Let the operating system replace duplicate files. Do not delete the hidden `.git` directory in the repository.
-5. In VS Code Source Control, stage all changes, commit, and push.
+1. Export a backup from v0.6 once you have real data.
+2. Unzip v0.7.
+3. Copy the **contents inside** `chunk-solvency-v0.7` into your local cloned `chunk-solvency` repo folder. Replace duplicates. Do not overwrite the hidden `.git` folder.
+4. Stage, commit, and push.
 
 Suggested commit message:
 
 ```
-Install IN OUT ledger and campaign deck v0.6
+Install two-line ledger and active duty planning v0.7
 ```
 
-After GitHub Pages deploys, open the direct Pages URL once and hard refresh. The service worker cache is versioned as `v0.6.0`.
+Your v0.6 saved state migrates automatically on the same URL/browser. v0.7 changes display defaults but does not erase your actual values. Your data remains local to each browser/device. Keep backup JSON files private and out of GitHub.
 
-## Data
+## Install on iPhone
 
-All live financial state stays in the browser's local storage for the exact device and browser. GitHub hosts code only. Exported JSON is sensitive; keep it private and never commit it to the repository.
+Open the GitHub Pages URL in Safari, then use **Share → Add to Home Screen → Open as Web App → Add**. After updating, open the direct Pages URL once in Safari before relaunching the Home Screen app so the new service worker can update its cache.

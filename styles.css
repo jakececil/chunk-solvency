@@ -32,3 +32,39 @@ nav{display:flex;overflow-x:auto;border-bottom:1px solid var(--line);scrollbar-w
 @media(max-width:1100px){.flowcontrols{grid-template-columns:repeat(2,minmax(0,1fr))}.addcontrol{grid-column:1/-1}}
 @media(max-width:900px){.eventdeck{grid-template-columns:repeat(2,minmax(0,1fr))}.eventcard:nth-child(2){border-right:0}.eventcard:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 @media(max-width:620px){.eventdeck{grid-template-columns:1fr 1fr}.eventcard{padding:12px 10px}.eventcard strong{font-size:23px}.eventcard small{font-size:8px}.flowcontrols{grid-template-columns:1fr}.segmented.tri{grid-template-columns:repeat(3,1fr)}.bodyframe.ledger:before{font-size:7px;letter-spacing:.08em}.bodyframe.ledger .bodygrid{padding-top:17px}.daylogged{bottom:13px;font-size:6px}}
+
+
+/* v0.7: two-line ledger, discrete tails, campaign duty, exact expandable card matter */
+.eventdeck{grid-template-columns:repeat(5,minmax(0,1fr))}
+.eventcard{color:var(--ink);text-align:left}
+button.eventcard{min-width:0;border:0;border-right:1px solid var(--line);background:transparent;cursor:pointer}
+button.eventcard:hover{background:rgba(255,255,255,.055)}
+.eventcard.duty strong{color:var(--lime)}
+.eventcard.duty{background:linear-gradient(135deg,rgba(215,232,132,.09),transparent)}
+.eventcard.gap{background:linear-gradient(135deg,rgba(255,181,98,.08),transparent)}
+.tailstack{box-shadow:inset 0 0 0 1px rgba(255,255,255,.25),inset 3px 0 0 rgba(255,255,255,.76)}
+.tailstack:after{opacity:.27}
+.bodyframe.ledger:before{display:none}
+.bodyframe.ledger .ledgerbody{padding:10px}
+.ledgerbody{display:grid;gap:12px}
+.ledgerline{display:grid;grid-template-columns:132px minmax(0,1fr);gap:8px;align-items:stretch}
+.ledgerline>header{display:grid;align-content:center;gap:4px;min-width:0;border:1px solid var(--strong);padding:10px;background:rgba(3,8,13,.54)}
+.ledgerline>header span{font-family:ui-sans-serif,system-ui,sans-serif;font-size:21px;font-weight:800;letter-spacing:-.07em}
+.ledgerline>header b{font-size:12px;color:var(--dim)}
+.ledgerline>header small{color:var(--dim);font-size:7px;letter-spacing:.08em;line-height:1.35}
+.ledgerline.in>header{border-color:rgba(96,228,197,.45)}
+.ledgerline.in>header span{color:var(--cash)}
+.ledgerline.out>header{border-color:rgba(255,136,111,.45)}
+.ledgerline.out>header span{color:var(--ess)}
+.ledgerline .bodygrid{border:1px solid var(--strong)}
+.cardcontrol{display:grid;gap:5px}
+.territory.wide{grid-column:span 2}
+.card.wide{grid-column:span 2}
+.minitiles.exact,.hollowtiles.exact{grid-template-columns:repeat(24,1fr);min-height:auto}
+.minitiles.exact i,.hollowtiles.exact i{min-width:0}
+.daysuggestion{margin:12px 0 7px;color:var(--lime);font-size:10px;line-height:1.45}
+.suggestbutton{width:100%;min-height:38px;border:1px solid rgba(215,232,132,.64);background:rgba(215,232,132,.07);color:var(--lime);font-size:9px;letter-spacing:.09em}
+.suggestbutton[hidden]{display:none}
+@media(max-width:1100px){.eventdeck{grid-template-columns:repeat(3,minmax(0,1fr))}.eventcard:nth-child(3){border-right:0}.eventcard:nth-child(-n+3){border-bottom:1px solid var(--line)}}
+@media(max-width:900px){.ledgerline{grid-template-columns:108px minmax(0,1fr)}.card.wide{grid-column:1/-1}.territory.wide{grid-column:span 2}.eventdeck{grid-template-columns:repeat(2,minmax(0,1fr))}.eventcard:nth-child(2){border-right:0}.eventcard:nth-child(3){border-right:1px solid var(--line)}.eventcard:nth-child(-n+4){border-bottom:1px solid var(--line)}}
+@media(max-width:620px){.ledgerbody{gap:10px}.ledgerline{grid-template-columns:1fr;gap:5px}.ledgerline>header{grid-template-columns:auto 1fr;align-items:baseline;padding:8px 9px}.ledgerline>header small{grid-column:1/-1}.ledgerline .bodygrid{--cols:10}.minitiles.exact,.hollowtiles.exact{grid-template-columns:repeat(12,1fr)}.territory.wide{grid-column:1/-1}.card.wide{grid-column:1/-1}.eventcard.duty{grid-column:1/-1}.eventdeck{grid-template-columns:1fr 1fr}.eventcard:nth-child(1){border-right:0}.eventcard:nth-child(3){border-right:0}.eventcard:nth-child(4){border-right:1px solid var(--line)}.eventcard:nth-child(-n+3){border-bottom:1px solid var(--line)}}
